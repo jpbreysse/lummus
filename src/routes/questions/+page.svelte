@@ -15,16 +15,36 @@
 
 	type Status = 'open' | 'answered' | 'deferred';
 	let filter = $state<'all' | Status>('all');
+	let workshopFilter = $state<string>('all');
+
+	const workshopCodes = $derived(
+		Array.from(new Set(data.questions.map((q) => q.workshopCode))).sort()
+	);
 
 	const filtered = $derived(
-		filter === 'all' ? data.questions : data.questions.filter((q) => q.status === filter)
+		data.questions.filter(
+			(q) =>
+				(filter === 'all' || q.status === filter) &&
+				(workshopFilter === 'all' || q.workshopCode === workshopFilter)
+		)
 	);
-	const counts = $derived({
-		all: data.questions.length,
-		open: data.questions.filter((q) => q.status === 'open').length,
-		answered: data.questions.filter((q) => q.status === 'answered').length,
-		deferred: data.questions.filter((q) => q.status === 'deferred').length
+
+	const countsForFilter = (base: typeof data.questions) => ({
+		all: base.length,
+		open: base.filter((q) => q.status === 'open').length,
+		answered: base.filter((q) => q.status === 'answered').length,
+		deferred: base.filter((q) => q.status === 'deferred').length
 	});
+	const counts = $derived(
+		countsForFilter(
+			workshopFilter === 'all'
+				? data.questions
+				: data.questions.filter((q) => q.workshopCode === workshopFilter)
+		)
+	);
+
+	const workshopCount = (code: string) =>
+		data.questions.filter((q) => q.workshopCode === code).length;
 
 	const statusVariant = (s: string) =>
 		s === 'answered' ? 'default' : s === 'deferred' ? 'secondary' : 'outline';
@@ -38,19 +58,48 @@
 		</div>
 	</header>
 
-	<div class="mb-4 flex gap-1 text-sm">
-		{#each [['all', 'All'], ['open', 'Open'], ['answered', 'Answered'], ['deferred', 'Deferred']] as const as [k, label] (k)}
+	<div class="mb-4 flex flex-wrap items-center gap-4">
+		<div class="flex gap-1 text-sm">
+			<span class="text-muted-foreground self-center text-xs">Workshop:</span>
 			<button
 				type="button"
-				class="hover:bg-accent rounded-md border px-3 py-1 text-xs transition-colors {filter ===
-				k
+				class="hover:bg-accent rounded-md border px-3 py-1 text-xs transition-colors {workshopFilter ===
+				'all'
 					? 'bg-accent font-medium'
 					: 'text-muted-foreground'}"
-				onclick={() => (filter = k)}
+				onclick={() => (workshopFilter = 'all')}
 			>
-				{label} <span class="ml-1 opacity-60">{counts[k]}</span>
+				All <span class="ml-1 opacity-60">{data.questions.length}</span>
 			</button>
-		{/each}
+			{#each workshopCodes as code (code)}
+				<button
+					type="button"
+					class="hover:bg-accent rounded-md border px-3 py-1 font-mono text-xs transition-colors {workshopFilter ===
+					code
+						? 'bg-accent font-medium'
+						: 'text-muted-foreground'}"
+					onclick={() => (workshopFilter = code)}
+				>
+					{code} <span class="ml-1 opacity-60">{workshopCount(code)}</span>
+				</button>
+			{/each}
+		</div>
+
+		<div class="flex gap-1 text-sm">
+			<span class="text-muted-foreground self-center text-xs">Status:</span>
+			{#each [['all', 'All'], ['open', 'Open'], ['answered', 'Answered'], ['deferred', 'Deferred']] as const as [k, label] (k)}
+				<button
+					type="button"
+					class="hover:bg-accent rounded-md border px-3 py-1 text-xs transition-colors {filter ===
+					k
+						? 'bg-accent font-medium'
+						: 'text-muted-foreground'}"
+					onclick={() => (filter = k)}
+				>
+					{label} <span class="ml-1 opacity-60">{counts[k]}</span>
+				</button>
+			{/each}
+		</div>
 	</div>
 
 	<div class="rounded-lg border">
