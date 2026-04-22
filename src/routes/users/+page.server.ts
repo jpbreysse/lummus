@@ -1,8 +1,9 @@
 import { db } from '$lib/server/db';
-import { user, session, invite } from '$lib/server/db/schema';
-import { desc, eq, sql } from 'drizzle-orm';
+import { user, session, invite, account } from '$lib/server/db/schema';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { error, fail } from '@sveltejs/kit';
 import { randomBytes } from 'node:crypto';
+import { hashPassword } from 'better-auth/crypto';
 import type { Actions, PageServerLoad } from './$types';
 
 function generateCode() {
@@ -57,6 +58,38 @@ export const actions: Actions = {
 			return fail(400, { error: 'Cannot delete your own account' });
 		}
 		await db.delete(user).where(eq(user.id, id));
+		return { ok: true };
+	},
+
+	resetPassword: async ({ request, locals }) => {
+		if (!requireAdmin(locals)) return fail(403, { error: 'Admin only' });
+		const form = await request.formData();
+		const id = form.get('id')?.toString();
+		const password = form.get('password')?.toString() ?? '';
+		if (!id) return fail(400, { error: 'Missing id' });
+		if (password.length < 8) return fail(400, { error: 'Password must be at least 8 characters' });
+
+		const hashed = await hashPassword(password);
+		const [existing] = await db
+			.select({ id: account.id })
+			.from(account)
+			.where(and(eq(account.userId, id), eq(account.providerId, 'credential')))
+			.limit(1);
+
+		if (existing) {
+			await db
+				.update(account)
+				.set({ password: hashed, updatedAt: new Date() })
+				.where(eq(account.id, existing.id));
+		} else {
+			await db.insert(account).values({
+				id: randomBytes(16).toString('hex'),
+				accountId: id,
+				providerId: 'credential',
+				userId: id,
+				password: hashed
+			});
+		}
 		return { ok: true };
 	},
 

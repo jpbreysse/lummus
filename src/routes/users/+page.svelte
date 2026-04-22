@@ -12,6 +12,7 @@
 	import Copy from '@lucide/svelte/icons/copy';
 	import Plus from '@lucide/svelte/icons/plus';
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
+	import KeyRound from '@lucide/svelte/icons/key-round';
 
 	let { data } = $props();
 
@@ -19,6 +20,10 @@
 	let latestInvite = $state<{ url: string } | null>(null);
 	let copied = $state(false);
 	let roleSavedAt = $state<Record<string, number>>({});
+	let resetUser = $state<{ id: string; name: string; email: string } | null>(null);
+	let resetPassword = $state('');
+	let resetError = $state<string | null>(null);
+	let resetLoading = $state(false);
 
 	const markSaved = (id: string) => {
 		const stamp = Date.now();
@@ -128,33 +133,51 @@
 							<Table.Cell class="font-mono text-xs">{u.sessions}</Table.Cell>
 							<Table.Cell class="text-muted-foreground text-xs">{fmt(u.createdAt)}</Table.Cell>
 							<Table.Cell>
-								{#if u.id !== data.currentUserId}
-									<form
-										method="POST"
-										action="?/delete"
-										use:enhance={() => {
-											return async ({ update }) => {
-												await update();
-												await invalidateAll();
-											};
+								<div class="flex justify-end gap-1 opacity-0 group-hover:opacity-100">
+									<button
+										type="button"
+										class="{buttonVariants({
+											variant: 'ghost',
+											size: 'sm'
+										})} text-muted-foreground hover:text-foreground"
+										onclick={() => {
+											resetUser = { id: u.id, name: u.name, email: u.email };
+											resetPassword = '';
+											resetError = null;
 										}}
-										onsubmit={(e) => {
-											if (!confirm(`Delete ${u.name}?`)) e.preventDefault();
-										}}
+										aria-label="Reset password"
+										title="Reset password"
 									>
-										<input type="hidden" name="id" value={u.id} />
-										<button
-											type="submit"
-											class="{buttonVariants({
-												variant: 'ghost',
-												size: 'sm'
-											})} text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100"
-											aria-label="Delete user"
+										<KeyRound class="size-3.5" />
+									</button>
+									{#if u.id !== data.currentUserId}
+										<form
+											method="POST"
+											action="?/delete"
+											use:enhance={() => {
+												return async ({ update }) => {
+													await update();
+													await invalidateAll();
+												};
+											}}
+											onsubmit={(e) => {
+												if (!confirm(`Delete ${u.name}?`)) e.preventDefault();
+											}}
 										>
-											<Trash2 class="size-3.5" />
-										</button>
-									</form>
-								{/if}
+											<input type="hidden" name="id" value={u.id} />
+											<button
+												type="submit"
+												class="{buttonVariants({
+													variant: 'ghost',
+													size: 'sm'
+												})} text-muted-foreground hover:text-destructive"
+												aria-label="Delete user"
+											>
+												<Trash2 class="size-3.5" />
+											</button>
+										</form>
+									{/if}
+								</div>
 							</Table.Cell>
 						</Table.Row>
 					{/each}
@@ -247,6 +270,72 @@
 		</div>
 	{/if}
 </div>
+
+<!-- Reset password dialog -->
+<Dialog.Root
+	open={resetUser !== null}
+	onOpenChange={(v) => {
+		if (!v) resetUser = null;
+	}}
+>
+	<Dialog.Content>
+		<Dialog.Header>
+			<Dialog.Title>Reset password</Dialog.Title>
+			<Dialog.Description>
+				{#if resetUser}
+					Set a new password for <strong>{resetUser.name}</strong> ({resetUser.email}).
+					Share it out-of-band — the user will sign in with it immediately.
+				{/if}
+			</Dialog.Description>
+		</Dialog.Header>
+		<form
+			method="POST"
+			action="?/resetPassword"
+			class="space-y-4"
+			use:enhance={() => {
+				resetLoading = true;
+				resetError = null;
+				return async ({ result }) => {
+					resetLoading = false;
+					if (result.type === 'success') {
+						resetUser = null;
+						resetPassword = '';
+					} else if (result.type === 'failure') {
+						resetError = (result.data?.error as string) ?? 'Failed';
+					}
+				};
+			}}
+		>
+			{#if resetUser}
+				<input type="hidden" name="id" value={resetUser.id} />
+			{/if}
+			<div class="space-y-2">
+				<Label for="reset-password">New password</Label>
+				<Input
+					id="reset-password"
+					name="password"
+					type="password"
+					required
+					minlength={8}
+					bind:value={resetPassword}
+					autocomplete="new-password"
+				/>
+				<p class="text-muted-foreground text-xs">Minimum 8 characters.</p>
+			</div>
+			{#if resetError}
+				<p class="text-destructive text-sm">{resetError}</p>
+			{/if}
+			<Dialog.Footer>
+				<Button variant="outline" type="button" onclick={() => (resetUser = null)}>
+					Cancel
+				</Button>
+				<Button type="submit" disabled={resetLoading}>
+					{resetLoading ? 'Saving…' : 'Set password'}
+				</Button>
+			</Dialog.Footer>
+		</form>
+	</Dialog.Content>
+</Dialog.Root>
 
 <Dialog.Root bind:open={createOpen}>
 	<Dialog.Content>
