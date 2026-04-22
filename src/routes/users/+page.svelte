@@ -18,6 +18,18 @@
 	let createOpen = $state(false);
 	let latestInvite = $state<{ url: string } | null>(null);
 	let copied = $state(false);
+	let roleSavedAt = $state<Record<string, number>>({});
+
+	const markSaved = (id: string) => {
+		const stamp = Date.now();
+		roleSavedAt = { ...roleSavedAt, [id]: stamp };
+		setTimeout(() => {
+			if (roleSavedAt[id] === stamp) {
+				const { [id]: _, ...rest } = roleSavedAt;
+				roleSavedAt = rest;
+			}
+		}, 1500);
+	};
 
 	const fmt = (d: string | Date | null) =>
 		d
@@ -65,7 +77,7 @@
 					<Table.Row>
 						<Table.Head>Name</Table.Head>
 						<Table.Head>Email</Table.Head>
-						<Table.Head class="w-24">Role</Table.Head>
+						<Table.Head class="w-40">Role</Table.Head>
 						<Table.Head class="w-20">Sessions</Table.Head>
 						<Table.Head class="w-28">Created</Table.Head>
 						<Table.Head class="w-12"></Table.Head>
@@ -86,10 +98,10 @@
 									<form
 										method="POST"
 										action="?/setRole"
+										class="flex items-center gap-2"
 										use:enhance={() => {
-											return async ({ update }) => {
-												await update();
-												await invalidateAll();
+											return async ({ result }) => {
+												if (result.type === 'success') markSaved(u.id);
 											};
 										}}
 									>
@@ -103,6 +115,11 @@
 											<option value="admin">admin</option>
 											<option value="user">user</option>
 										</select>
+										{#if roleSavedAt[u.id]}
+											<span class="flex items-center gap-1 text-xs text-emerald-600">
+												<CircleCheck class="size-3" /> saved
+											</span>
+										{/if}
 									</form>
 								{:else}
 									<Badge variant={u.role === 'admin' ? 'default' : 'secondary'}>{u.role}</Badge>
