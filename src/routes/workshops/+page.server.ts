@@ -11,6 +11,7 @@ export const load = async () => {
 			description: workshop.description,
 			weekNumber: workshop.weekNumber,
 			sessionDurationMinutes: workshop.sessionDurationMinutes,
+			scheduledAt: workshop.scheduledAt,
 			status: workshop.status,
 			total: sql<number>`(select count(*)::int from ${question} where ${question.workshopId} = ${workshop.id})`,
 			answered: sql<number>`(select count(*)::int from ${question} where ${question.workshopId} = ${workshop.id} and ${question.status} = 'answered')`,

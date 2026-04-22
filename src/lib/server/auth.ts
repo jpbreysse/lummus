@@ -1,6 +1,7 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { env } from '$env/dynamic/private';
+import { sql } from 'drizzle-orm';
 import { db } from './db';
 import * as schema from './db/schema';
 
@@ -28,5 +29,19 @@ export const auth = betterAuth({
 	emailAndPassword: {
 		enabled: true,
 		autoSignIn: true
+	},
+	databaseHooks: {
+		user: {
+			create: {
+				before: async (data) => {
+					const [{ count }] = await db
+						.select({ count: sql<number>`count(*)::int` })
+						.from(schema.user);
+					return {
+						data: { ...data, role: count === 0 ? 'admin' : 'user' }
+					};
+				}
+			}
+		}
 	}
 });

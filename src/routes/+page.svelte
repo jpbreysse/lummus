@@ -53,7 +53,7 @@
 	};
 </script>
 
-<div class="mx-auto max-w-6xl px-6 py-8">
+<div class="max-w-7xl px-8 py-8">
 	<header class="mb-8 flex items-end justify-between">
 		<div>
 			<h1 class="text-3xl font-semibold tracking-tight">Lummus Phase 2</h1>

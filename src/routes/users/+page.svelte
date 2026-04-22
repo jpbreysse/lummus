@@ -44,7 +44,7 @@
 	}
 </script>
 
-<div class="mx-auto max-w-5xl px-6 py-8">
+<div class="max-w-7xl px-8 py-8">
 	<header class="mb-6 flex items-center justify-between">
 		<div>
 			<h1 class="text-2xl font-semibold tracking-tight">Users & invites</h1>
@@ -65,7 +65,7 @@
 					<Table.Row>
 						<Table.Head>Name</Table.Head>
 						<Table.Head>Email</Table.Head>
-						<Table.Head class="w-24">Verified</Table.Head>
+						<Table.Head class="w-24">Role</Table.Head>
 						<Table.Head class="w-20">Sessions</Table.Head>
 						<Table.Head class="w-28">Created</Table.Head>
 						<Table.Head class="w-12"></Table.Head>
@@ -82,10 +82,30 @@
 							</Table.Cell>
 							<Table.Cell class="text-muted-foreground">{u.email}</Table.Cell>
 							<Table.Cell>
-								{#if u.emailVerified}
-									<CircleCheck class="size-4 text-emerald-600" />
+								{#if u.id !== data.currentUserId}
+									<form
+										method="POST"
+										action="?/setRole"
+										use:enhance={() => {
+											return async ({ update }) => {
+												await update();
+												await invalidateAll();
+											};
+										}}
+									>
+										<input type="hidden" name="id" value={u.id} />
+										<select
+											name="role"
+											value={u.role}
+											onchange={(e) => (e.currentTarget.form as HTMLFormElement).requestSubmit()}
+											class="border-input bg-background h-7 rounded-md border px-2 text-xs"
+										>
+											<option value="admin">admin</option>
+											<option value="user">user</option>
+										</select>
+									</form>
 								{:else}
-									<span class="text-muted-foreground text-xs">—</span>
+									<Badge variant={u.role === 'admin' ? 'default' : 'secondary'}>{u.role}</Badge>
 								{/if}
 							</Table.Cell>
 							<Table.Cell class="font-mono text-xs">{u.sessions}</Table.Cell>

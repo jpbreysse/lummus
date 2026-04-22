@@ -1,7 +1,7 @@
 import { db } from '$lib/server/db';
 import { user, session, invite } from '$lib/server/db/schema';
 import { desc, eq, sql } from 'drizzle-orm';
-import { fail } from '@sveltejs/kit';
+import { error, fail } from '@sveltejs/kit';
 import { randomBytes } from 'node:crypto';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -10,6 +10,10 @@ function generateCode() {
 }
 
 export const load: PageServerLoad = async ({ locals }) => {
+	if (locals.user?.role !== 'admin') {
+		throw error(403, 'Admins only');
+	}
+
 	const users = await db
 		.select({
 			id: user.id,
@@ -17,6 +21,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			email: user.email,
 			emailVerified: user.emailVerified,
 			image: user.image,
+			role: user.role,
 			createdAt: user.createdAt,
 			sessions: sql<number>`(select count(*)::int from ${session} where ${session.userId} = ${user.id} and ${session.expiresAt} > now())`
 		})
@@ -40,8 +45,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 	return { users, invites, currentUserId: locals.user?.id ?? null };
 };
 
+const requireAdmin = (locals: App.Locals) => locals.user?.role === 'admin';
+
 export const actions: Actions = {
 	delete: async ({ request, locals }) => {
+		if (!requireAdmin(locals)) return fail(403, { error: 'Admin only' });
 		const form = await request.formData();
 		const id = form.get('id')?.toString();
 		if (!id) return fail(400, { error: 'Missing id' });
@@ -52,7 +60,23 @@ export const actions: Actions = {
 		return { ok: true };
 	},
 
+	setRole: async ({ request, locals }) => {
+		if (!requireAdmin(locals)) return fail(403, { error: 'Admin only' });
+		const form = await request.formData();
+		const id = form.get('id')?.toString();
+		const role = form.get('role')?.toString();
+		if (!id || (role !== 'admin' && role !== 'user')) {
+			return fail(400, { error: 'Invalid' });
+		}
+		if (locals.user && id === locals.user.id && role === 'user') {
+			return fail(400, { error: 'Cannot demote yourself' });
+		}
+		await db.update(user).set({ role }).where(eq(user.id, id));
+		return { ok: true };
+	},
+
 	createInvite: async ({ request, locals, url }) => {
+		if (!requireAdmin(locals)) return fail(403, { error: 'Admin only' });
 		const form = await request.formData();
 		const email = form.get('email')?.toString().trim().toLowerCase() || null;
 		const ttlDays = Number(form.get('ttlDays')) || 7;
@@ -71,7 +95,8 @@ export const actions: Actions = {
 		return { ok: true, inviteUrl: signupUrl };
 	},
 
-	deleteInvite: async ({ request }) => {
+	deleteInvite: async ({ request, locals }) => {
+		if (!requireAdmin(locals)) return fail(403, { error: 'Admin only' });
 		const form = await request.formData();
 		const id = Number(form.get('id'));
 		if (!id) return fail(400, { error: 'Missing id' });

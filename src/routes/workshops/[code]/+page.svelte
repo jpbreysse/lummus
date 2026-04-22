@@ -21,10 +21,12 @@
 	import Users from '@lucide/svelte/icons/users';
 	import Clock from '@lucide/svelte/icons/clock';
 	import MessageSquare from '@lucide/svelte/icons/message-square';
+	import MessageCirclePlus from '@lucide/svelte/icons/message-circle-plus';
 	import { page } from '$app/state';
 
 	let { data } = $props();
 	const currentUserId = $derived(page.data.user?.id ?? null);
+	const isAdmin = $derived(data.isAdmin);
 	let expandedQuestions = $state<Set<number>>(new Set());
 
 	const toggleExpanded = (id: number) => {
@@ -72,7 +74,7 @@
 		s === 'answered' ? 'default' : s === 'deferred' ? 'secondary' : 'outline';
 </script>
 
-<div class="mx-auto max-w-5xl px-6 py-8">
+<div class="max-w-7xl px-8 py-8">
 	<Button href="/workshops" variant="ghost" size="sm" class="mb-4 gap-1">
 		<ArrowLeft class="size-4" /> Workshops
 	</Button>
@@ -104,9 +106,11 @@
 			</div>
 			<p class="text-muted-foreground mt-2 text-sm">{data.workshop.description ?? ''}</p>
 		</div>
-		<Button variant="outline" size="sm" class="gap-1" onclick={() => (editWorkshopOpen = true)}>
-			<Pencil class="size-3.5" /> Edit
-		</Button>
+		{#if isAdmin}
+			<Button variant="outline" size="sm" class="gap-1" onclick={() => (editWorkshopOpen = true)}>
+				<Pencil class="size-3.5" /> Edit
+			</Button>
+		{/if}
 	</header>
 
 	<div class="mb-6">
@@ -122,46 +126,173 @@
 			<Card.Header>
 				<div class="flex items-center justify-between">
 					<Card.Title class="text-base">Questions ({data.questions.length})</Card.Title>
-					<Button size="sm" variant="outline" class="gap-1" onclick={() => (addQuestionOpen = true)}>
-						<Plus class="size-3.5" /> Add
-					</Button>
+					{#if isAdmin}
+						<Button size="sm" variant="outline" class="gap-1" onclick={() => (addQuestionOpen = true)}>
+							<Plus class="size-3.5" /> Add
+						</Button>
+					{/if}
 				</div>
 			</Card.Header>
 			<Card.Content class="space-y-2">
 				{#each data.questions as q, i (q.id)}
 					{@const expanded = expandedQuestions.has(q.id)}
+					{@const ownResponse = q.responses.find((r) => r.userId === currentUserId)}
+					{@const otherResponses = q.responses.filter((r) => r.userId !== currentUserId)}
 					<div class="hover:bg-accent/30 group rounded-md border p-3 transition-colors">
 						<div class="flex items-start gap-3">
 							<span class="text-muted-foreground w-5 font-mono text-xs">{i + 1}</span>
 							<div class="min-w-0 flex-1">
 								<p class="text-sm">{q.prompt}</p>
-								{#if q.answer}
-									<p class="text-muted-foreground mt-1 border-l-2 pl-2 text-xs whitespace-pre-wrap">{q.answer}</p>
+								{#if isAdmin && q.answer}
+									<p class="text-muted-foreground mt-1 border-l-2 border-emerald-500 pl-2 text-xs whitespace-pre-wrap">
+										<span class="text-emerald-700 font-medium">Official answer — </span>{q.answer}
+									</p>
 								{/if}
-								<button
-									type="button"
-									class="text-muted-foreground hover:text-foreground mt-2 flex items-center gap-1 text-xs transition-colors"
-									onclick={() => toggleExpanded(q.id)}
-								>
-									<MessageSquare class="size-3.5" />
-									{q.comments.length}
-									{q.comments.length === 1 ? 'comment' : 'comments'}
-									{expanded ? '· hide' : ''}
-								</button>
+								<div class="mt-2 flex gap-3 text-xs">
+									<button
+										type="button"
+										class="text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+										onclick={() => toggleExpanded(q.id)}
+									>
+										<MessageCirclePlus class="size-3.5" />
+										{#if ownResponse}Your response{:else}Add your response{/if}
+										{#if isAdmin && otherResponses.length}· +{otherResponses.length} other{otherResponses.length > 1 ? 's' : ''}{/if}
+									</button>
+									<button
+										type="button"
+										class="text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+										onclick={() => toggleExpanded(q.id)}
+									>
+										<MessageSquare class="size-3.5" />
+										{q.comments.length}
+										{q.comments.length === 1 ? 'comment' : 'comments'}
+										{expanded ? '· hide' : ''}
+									</button>
+								</div>
 							</div>
 							<Badge variant={questionStatusVariant(q.status)} class="shrink-0">{q.status}</Badge>
-							<button
-								type="button"
-								class="text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100"
-								onclick={() => (editingQuestionId = q.id)}
-								aria-label="Edit question"
-							>
-								<Pencil class="size-3.5" />
-							</button>
+							{#if isAdmin}
+								<button
+									type="button"
+									class="text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100"
+									onclick={() => (editingQuestionId = q.id)}
+									aria-label="Edit question"
+								>
+									<Pencil class="size-3.5" />
+								</button>
+							{/if}
 						</div>
 
 						{#if expanded}
-							<div class="border-border/60 mt-3 ml-8 space-y-2 border-l-2 pl-3">
+							<div class="border-border/60 mt-3 ml-8 space-y-4 border-l-2 pl-3">
+								<!-- Own response -->
+								<div>
+									<div class="mb-1 flex items-center justify-between">
+										<span class="text-muted-foreground text-[11px] font-medium uppercase tracking-wide">
+											Your response
+										</span>
+										{#if ownResponse}
+											<form
+												method="POST"
+												action="?/deleteResponse"
+												use:enhance={() => {
+													return async ({ update }) => {
+														await update();
+														await invalidateAll();
+													};
+												}}
+											>
+												<input type="hidden" name="id" value={ownResponse.id} />
+												<button
+													type="submit"
+													class="text-muted-foreground hover:text-destructive text-[11px]"
+												>
+													Delete
+												</button>
+											</form>
+										{/if}
+									</div>
+									<form
+										method="POST"
+										action="?/saveResponse"
+										class="flex flex-col gap-2"
+										use:enhance={() => {
+											return async ({ update }) => {
+												await update({ reset: false });
+												await invalidateAll();
+											};
+										}}
+									>
+										<input type="hidden" name="questionId" value={q.id} />
+										<Textarea
+											name="body"
+											rows={3}
+											required
+											placeholder="Your answer to this question…"
+											value={ownResponse?.body ?? ''}
+											class="text-sm"
+										/>
+										<div class="flex items-center justify-between">
+											{#if ownResponse}
+												<span class="text-muted-foreground text-[11px]">
+													Updated {fmtCommentTime(ownResponse.updatedAt)}
+												</span>
+											{:else}
+												<span></span>
+											{/if}
+											<Button type="submit" size="sm">
+												{ownResponse ? 'Update' : 'Save'}
+											</Button>
+										</div>
+									</form>
+								</div>
+
+								{#if isAdmin && otherResponses.length}
+									<div>
+										<div class="text-muted-foreground mb-1 text-[11px] font-medium uppercase tracking-wide">
+											Other responses ({otherResponses.length})
+										</div>
+										<div class="space-y-2">
+											{#each otherResponses as r (r.id)}
+												<div class="group/resp flex items-start justify-between gap-2">
+													<div class="min-w-0 flex-1">
+														<div class="text-muted-foreground text-[11px]">
+															<span class="text-foreground font-medium">{r.userName ?? 'Unknown'}</span>
+															· {fmtCommentTime(r.updatedAt)}
+														</div>
+														<p class="text-sm whitespace-pre-wrap">{r.body}</p>
+													</div>
+													<form
+														method="POST"
+														action="?/deleteResponse"
+														use:enhance={() => {
+															return async ({ update }) => {
+																await update();
+																await invalidateAll();
+															};
+														}}
+													>
+														<input type="hidden" name="id" value={r.id} />
+														<button
+															type="submit"
+															class="text-muted-foreground hover:text-destructive opacity-0 group-hover/resp:opacity-100"
+															aria-label="Delete response"
+														>
+															<Trash2 class="size-3" />
+														</button>
+													</form>
+												</div>
+											{/each}
+										</div>
+									</div>
+								{/if}
+
+								<!-- Comments -->
+								<div>
+									<div class="text-muted-foreground mb-1 text-[11px] font-medium uppercase tracking-wide">
+										Comments
+									</div>
+									<div class="space-y-2">
 								{#each q.comments as c (c.id)}
 									<div class="group/comment flex items-start justify-between gap-2">
 										<div class="min-w-0 flex-1">
@@ -171,7 +302,7 @@
 											</div>
 											<p class="text-sm whitespace-pre-wrap">{c.body}</p>
 										</div>
-										{#if c.authorUserId === currentUserId}
+										{#if c.authorUserId === currentUserId || isAdmin}
 											<form
 												method="POST"
 												action="?/deleteComment"
@@ -197,28 +328,30 @@
 									<p class="text-muted-foreground text-xs">No comments yet.</p>
 								{/each}
 
-								<form
-									method="POST"
-									action="?/addComment"
-									class="flex gap-2 pt-1"
-									use:enhance={() => {
-										return async ({ update, formElement }) => {
-											await update();
-											formElement.reset();
-											await invalidateAll();
-										};
-									}}
-								>
-									<input type="hidden" name="questionId" value={q.id} />
-									<Textarea
-										name="body"
-										rows={1}
-										required
-										placeholder="Add a comment…"
-										class="min-h-[32px] text-sm"
-									/>
-									<Button type="submit" size="sm" variant="outline">Post</Button>
-								</form>
+									<form
+										method="POST"
+										action="?/addComment"
+										class="flex gap-2 pt-1"
+										use:enhance={() => {
+											return async ({ update, formElement }) => {
+												await update();
+												formElement.reset();
+												await invalidateAll();
+											};
+										}}
+									>
+										<input type="hidden" name="questionId" value={q.id} />
+										<Textarea
+											name="body"
+											rows={1}
+											required
+											placeholder="Add a comment…"
+											class="min-h-[32px] text-sm"
+										/>
+										<Button type="submit" size="sm" variant="outline">Post</Button>
+									</form>
+									</div>
+								</div>
 							</div>
 						{/if}
 					</div>
@@ -236,15 +369,17 @@
 						<Card.Title class="flex items-center gap-2 text-base">
 							<Users class="size-4" /> Participants ({data.participants.length})
 						</Card.Title>
-						<Button
-							size="sm"
-							variant="outline"
-							class="gap-1"
-							disabled={nonParticipants().length === 0}
-							onclick={() => (addParticipantOpen = true)}
-						>
-							<Plus class="size-3.5" />
-						</Button>
+						{#if isAdmin}
+							<Button
+								size="sm"
+								variant="outline"
+								class="gap-1"
+								disabled={nonParticipants().length === 0}
+								onclick={() => (addParticipantOpen = true)}
+							>
+								<Plus class="size-3.5" />
+							</Button>
+						{/if}
 					</div>
 				</Card.Header>
 				<Card.Content class="space-y-2">
@@ -256,25 +391,27 @@
 									{p.role}{p.organization ? ` · ${p.organization}` : ''}
 								</div>
 							</div>
-							<form
-								method="POST"
-								action="?/removeParticipant"
-								use:enhance={() => {
-									return async ({ update }) => {
-										await update();
-										await invalidateAll();
-									};
-								}}
-							>
-								<input type="hidden" name="teamMemberId" value={p.id} />
-								<button
-									type="submit"
-									class="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100"
-									aria-label="Remove participant"
+							{#if isAdmin}
+								<form
+									method="POST"
+									action="?/removeParticipant"
+									use:enhance={() => {
+										return async ({ update }) => {
+											await update();
+											await invalidateAll();
+										};
+									}}
 								>
-									<Trash2 class="size-3.5" />
-								</button>
-							</form>
+									<input type="hidden" name="teamMemberId" value={p.id} />
+									<button
+										type="submit"
+										class="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100"
+										aria-label="Remove participant"
+									>
+										<Trash2 class="size-3.5" />
+									</button>
+								</form>
+							{/if}
 						</div>
 					{/each}
 					{#if data.participants.length === 0}
@@ -289,9 +426,11 @@
 						<Card.Title class="flex items-center gap-2 text-base">
 							<Clock class="size-4" /> Hours ({totalHours}h)
 						</Card.Title>
-						<Button size="sm" variant="outline" class="gap-1" onclick={() => (addHoursOpen = true)}>
-							<Plus class="size-3.5" />
-						</Button>
+						{#if isAdmin}
+							<Button size="sm" variant="outline" class="gap-1" onclick={() => (addHoursOpen = true)}>
+								<Plus class="size-3.5" />
+							</Button>
+						{/if}
 					</div>
 				</Card.Header>
 				<Card.Content class="space-y-1 text-sm">
@@ -302,25 +441,27 @@
 							</span>
 							<div class="flex items-center gap-2">
 								<span class="font-mono text-xs">{h.hours}h</span>
-								<form
-									method="POST"
-									action="?/deleteHours"
-									use:enhance={() => {
-										return async ({ update }) => {
-											await update();
-											await invalidateAll();
-										};
-									}}
-								>
-									<input type="hidden" name="id" value={h.id} />
-									<button
-										type="submit"
-										class="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100"
-										aria-label="Delete entry"
+								{#if isAdmin}
+									<form
+										method="POST"
+										action="?/deleteHours"
+										use:enhance={() => {
+											return async ({ update }) => {
+												await update();
+												await invalidateAll();
+											};
+										}}
 									>
-										<Trash2 class="size-3.5" />
-									</button>
-								</form>
+										<input type="hidden" name="id" value={h.id} />
+										<button
+											type="submit"
+											class="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100"
+											aria-label="Delete entry"
+										>
+											<Trash2 class="size-3.5" />
+										</button>
+									</form>
+								{/if}
 							</div>
 						</div>
 					{:else}

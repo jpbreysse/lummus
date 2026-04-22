@@ -11,6 +11,8 @@ import {
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
+export const userRole = pgEnum('user_role', ['admin', 'user']);
+
 // ─── Auth (Better Auth) ──────────────────────────────────────────────
 export const user = pgTable('user', {
 	id: text('id').primaryKey(),
@@ -18,6 +20,7 @@ export const user = pgTable('user', {
 	email: text('email').notNull().unique(),
 	emailVerified: boolean('email_verified').notNull().default(false),
 	image: text('image'),
+	role: userRole('role').notNull().default('user'),
 	createdAt: timestamp('created_at').notNull().defaultNow(),
 	updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
@@ -190,6 +193,27 @@ export const workshopParticipantRelations = relations(workshopParticipant, ({ on
 		references: [teamMember.id]
 	})
 }));
+
+export const questionResponse = pgTable(
+	'question_response',
+	{
+		id: serial('id').primaryKey(),
+		questionId: integer('question_id')
+			.notNull()
+			.references(() => question.id, { onDelete: 'cascade' }),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		body: text('body').notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+		updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(t) => [
+		index('question_response_question_idx').on(t.questionId),
+		index('question_response_user_idx').on(t.userId),
+		index('question_response_unique').on(t.questionId, t.userId)
+	]
+);
 
 export const questionComment = pgTable(
 	'question_comment',

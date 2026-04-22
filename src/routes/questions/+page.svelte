@@ -11,6 +11,7 @@
 	import Pencil from '@lucide/svelte/icons/pencil';
 
 	let { data } = $props();
+	const isAdmin = $derived(data.isAdmin);
 	let editingId = $state<number | null>(null);
 
 	type Status = 'open' | 'answered' | 'deferred';
@@ -50,7 +51,7 @@
 		s === 'answered' ? 'default' : s === 'deferred' ? 'secondary' : 'outline';
 </script>
 
-<div class="mx-auto max-w-5xl px-6 py-8">
+<div class="max-w-7xl px-8 py-8">
 	<header class="mb-4 flex items-end justify-between">
 		<div>
 			<h1 class="text-2xl font-semibold tracking-tight">Questions</h1>
@@ -122,45 +123,56 @@
 						</Table.Cell>
 						<Table.Cell class="text-sm">
 							{q.prompt}
-							{#if q.answer}
+							{#if isAdmin && q.answer}
+								<div class="text-muted-foreground mt-1 line-clamp-2 border-l-2 border-emerald-500 pl-2 text-xs">
+									<span class="text-emerald-700 font-medium">Official — </span>{q.answer}
+								</div>
+							{/if}
+							{#if q.ownResponse}
 								<div class="text-muted-foreground mt-1 line-clamp-2 border-l-2 pl-2 text-xs">
-									{q.answer}
+									<span class="text-foreground font-medium">Your response — </span>{q.ownResponse}
 								</div>
 							{/if}
 						</Table.Cell>
 						<Table.Cell>
-							<form
-								method="POST"
-								action="?/setStatus"
-								use:enhance={() => {
-									return async ({ update }) => {
-										await update();
-										await invalidateAll();
-									};
-								}}
-							>
-								<input type="hidden" name="id" value={q.id} />
-								<select
-									name="status"
-									value={q.status}
-									onchange={(e) => (e.currentTarget.form as HTMLFormElement).requestSubmit()}
-									class="border-input bg-background h-7 rounded-md border px-2 text-xs"
+							{#if isAdmin}
+								<form
+									method="POST"
+									action="?/setStatus"
+									use:enhance={() => {
+										return async ({ update }) => {
+											await update();
+											await invalidateAll();
+										};
+									}}
 								>
-									<option value="open">open</option>
-									<option value="answered">answered</option>
-									<option value="deferred">deferred</option>
-								</select>
-							</form>
+									<input type="hidden" name="id" value={q.id} />
+									<select
+										name="status"
+										value={q.status}
+										onchange={(e) => (e.currentTarget.form as HTMLFormElement).requestSubmit()}
+										class="border-input bg-background h-7 rounded-md border px-2 text-xs"
+									>
+										<option value="open">open</option>
+										<option value="answered">answered</option>
+										<option value="deferred">deferred</option>
+									</select>
+								</form>
+							{:else}
+								<Badge variant={statusVariant(q.status)}>{q.status}</Badge>
+							{/if}
 						</Table.Cell>
 						<Table.Cell>
-							<button
-								type="button"
-								class="text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100"
-								onclick={() => (editingId = q.id)}
-								aria-label="Edit"
-							>
-								<Pencil class="size-3.5" />
-							</button>
+							{#if isAdmin}
+								<button
+									type="button"
+									class="text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100"
+									onclick={() => (editingId = q.id)}
+									aria-label="Edit"
+								>
+									<Pencil class="size-3.5" />
+								</button>
+							{/if}
 						</Table.Cell>
 					</Table.Row>
 				{/each}

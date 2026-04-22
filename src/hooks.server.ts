@@ -3,6 +3,9 @@ import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { json, redirect, type Handle } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
 import { building } from '$app/environment';
+import { db } from '$lib/server/db';
+import { user as userTable } from '$lib/server/db/schema';
+import { eq } from 'drizzle-orm';
 
 const PUBLIC_PATHS = ['/login', '/signup'];
 
@@ -30,7 +33,16 @@ const guard: Handle = async ({ event, resolve }) => {
 
 	const session = await auth.api.getSession({ headers: event.request.headers });
 	event.locals.session = session?.session ?? null;
-	event.locals.user = session?.user ?? null;
+	if (session?.user) {
+		const [row] = await db
+			.select({ role: userTable.role })
+			.from(userTable)
+			.where(eq(userTable.id, session.user.id))
+			.limit(1);
+		event.locals.user = { ...session.user, role: row?.role ?? 'user' };
+	} else {
+		event.locals.user = null;
+	}
 
 	if (!session && !isPublic) {
 		const redirectTo = encodeURIComponent(event.url.pathname + event.url.search);

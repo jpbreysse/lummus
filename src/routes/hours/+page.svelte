@@ -5,7 +5,7 @@
 	let { data } = $props();
 </script>
 
-<div class="mx-auto max-w-5xl px-6 py-8">
+<div class="max-w-7xl px-8 py-8">
 	<header class="mb-6">
 		<h1 class="text-2xl font-semibold tracking-tight">Hours</h1>
 		<p class="text-muted-foreground text-sm">{data.total}h logged across {data.entries.length} entries</p>
