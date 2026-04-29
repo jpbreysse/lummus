@@ -9,6 +9,7 @@
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import Pencil from '@lucide/svelte/icons/pencil';
+	import FileDown from '@lucide/svelte/icons/file-down';
 
 	let { data } = $props();
 	const isAdmin = $derived(data.isAdmin);
@@ -57,6 +58,11 @@
 			<h1 class="text-2xl font-semibold tracking-tight">Questions</h1>
 			<p class="text-muted-foreground text-sm">Across all workshops</p>
 		</div>
+		{#if isAdmin}
+			<Button href="/questions/export" variant="outline" size="sm" class="gap-1">
+				<FileDown class="size-4" /> Export Excel
+			</Button>
+		{/if}
 	</header>
 
 	<div class="mb-4 flex flex-wrap items-center gap-4">
