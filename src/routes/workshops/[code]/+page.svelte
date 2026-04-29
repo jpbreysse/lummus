@@ -22,6 +22,7 @@
 	import Clock from '@lucide/svelte/icons/clock';
 	import MessageSquare from '@lucide/svelte/icons/message-square';
 	import MessageCirclePlus from '@lucide/svelte/icons/message-circle-plus';
+	import History from '@lucide/svelte/icons/history';
 	import { page } from '$app/state';
 
 	let { data } = $props();
@@ -58,6 +59,22 @@
 			: s === 'in_progress'
 				? 'text-amber-600'
 				: 'text-muted-foreground';
+
+	type QStatus = 'open' | 'answered' | 'deferred';
+	let statusFilter = $state<'all' | QStatus>('all');
+
+	const filteredQuestions = $derived(
+		statusFilter === 'all'
+			? data.questions
+			: data.questions.filter((q) => q.status === statusFilter)
+	);
+
+	const statusCounts = $derived({
+		all: data.questions.length,
+		open: data.questions.filter((q) => q.status === 'open').length,
+		answered: data.questions.filter((q) => q.status === 'answered').length,
+		deferred: data.questions.filter((q) => q.status === 'deferred').length
+	});
 
 	let editWorkshopOpen = $state(false);
 	let editingQuestionId = $state<number | null>(null);
@@ -125,16 +142,30 @@
 		<Card.Root>
 			<Card.Header>
 				<div class="flex items-center justify-between">
-					<Card.Title class="text-base">Questions ({data.questions.length})</Card.Title>
+					<Card.Title class="text-base">Questions ({filteredQuestions.length})</Card.Title>
 					{#if isAdmin}
 						<Button size="sm" variant="outline" class="gap-1" onclick={() => (addQuestionOpen = true)}>
 							<Plus class="size-3.5" /> Add
 						</Button>
 					{/if}
 				</div>
+				<div class="mt-2 flex gap-1 text-sm">
+					{#each [['all', 'All'], ['open', 'Open'], ['answered', 'Answered'], ['deferred', 'Deferred']] as const as [k, label] (k)}
+						<button
+							type="button"
+							class="hover:bg-accent rounded-md border px-2.5 py-0.5 text-xs transition-colors {statusFilter ===
+							k
+								? 'bg-accent font-medium'
+								: 'text-muted-foreground'}"
+							onclick={() => (statusFilter = k)}
+						>
+							{label} <span class="ml-1 opacity-60">{statusCounts[k]}</span>
+						</button>
+					{/each}
+				</div>
 			</Card.Header>
 			<Card.Content class="space-y-2">
-				{#each data.questions as q, i (q.id)}
+				{#each filteredQuestions as q, i (q.id)}
 					{@const expanded = expandedQuestions.has(q.id)}
 					{@const ownResponse = q.responses.find((r) => r.userId === currentUserId)}
 					{@const otherResponses = q.responses.filter((r) => r.userId !== currentUserId)}
@@ -285,6 +316,34 @@
 											{/each}
 										</div>
 									</div>
+								{/if}
+
+								{#if isAdmin && q.history.length}
+									<details class="group/hist">
+										<summary class="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1 text-[11px] font-medium uppercase tracking-wide">
+											<History class="size-3" /> History ({q.history.length})
+										</summary>
+										<div class="mt-2 space-y-1.5 border-l-2 pl-3">
+											{#each [...q.history].reverse() as h (h.id)}
+												<div class="text-xs">
+													<div class="text-muted-foreground text-[11px]">
+														<span class="text-foreground font-medium">{h.actorName ?? 'Unknown'}</span>
+														· {fmtCommentTime(h.createdAt)} · <span class="font-mono">{h.action}</span>
+													</div>
+													{#if h.action === 'created'}
+														<div class="line-clamp-2">created with: <span class="text-muted-foreground">{h.newValue}</span></div>
+													{:else if h.action === 'status'}
+														<div>{h.oldValue} → <span class="font-medium">{h.newValue}</span></div>
+													{:else}
+														<div class="line-clamp-2 text-muted-foreground">
+															<span class="line-through">{h.oldValue || '—'}</span>
+															→ <span class="text-foreground">{h.newValue || '—'}</span>
+														</div>
+													{/if}
+												</div>
+											{/each}
+										</div>
+									</details>
 								{/if}
 
 								<!-- Comments -->

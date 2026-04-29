@@ -194,6 +194,22 @@ export const workshopParticipantRelations = relations(workshopParticipant, ({ on
 	})
 }));
 
+export const questionHistory = pgTable(
+	'question_history',
+	{
+		id: serial('id').primaryKey(),
+		questionId: integer('question_id')
+			.notNull()
+			.references(() => question.id, { onDelete: 'cascade' }),
+		actorUserId: text('actor_user_id').references(() => user.id, { onDelete: 'set null' }),
+		action: text('action').notNull(), // 'created' | 'prompt' | 'answer' | 'status' | 'deleted'
+		oldValue: text('old_value'),
+		newValue: text('new_value'),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(t) => [index('question_history_question_idx').on(t.questionId)]
+);
+
 export const questionResponse = pgTable(
 	'question_response',
 	{

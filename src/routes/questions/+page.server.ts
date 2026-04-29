@@ -1,5 +1,5 @@
 import { db } from '$lib/server/db';
-import { question, questionResponse, workshop } from '$lib/server/db/schema';
+import { question, questionResponse, questionHistory, workshop } from '$lib/server/db/schema';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
@@ -62,7 +62,25 @@ export const actions: Actions = {
 		if (!id || !prompt) return fail(400, { error: 'Missing fields' });
 		if (!QUESTION_STATUSES.includes(status)) return fail(400, { error: 'Invalid status' });
 
+		const [before] = await db
+			.select({ prompt: question.prompt, answer: question.answer, status: question.status })
+			.from(question)
+			.where(eq(question.id, id))
+			.limit(1);
+
 		await db.update(question).set({ prompt, answer, status }).where(eq(question.id, id));
+
+		if (before) {
+			const rows: { questionId: number; actorUserId: string | null; action: string; oldValue: string | null; newValue: string | null }[] = [];
+			const actor = locals.user?.id ?? null;
+			if (before.prompt !== prompt)
+				rows.push({ questionId: id, actorUserId: actor, action: 'prompt', oldValue: before.prompt, newValue: prompt });
+			if ((before.answer ?? '') !== (answer ?? ''))
+				rows.push({ questionId: id, actorUserId: actor, action: 'answer', oldValue: before.answer, newValue: answer });
+			if (before.status !== status)
+				rows.push({ questionId: id, actorUserId: actor, action: 'status', oldValue: before.status, newValue: status });
+			if (rows.length) await db.insert(questionHistory).values(rows);
+		}
 		return { ok: true };
 	},
 
@@ -80,7 +98,17 @@ export const actions: Actions = {
 			.limit(1);
 		if (!ws) return fail(404, { error: 'Workshop not found' });
 
-		await db.insert(question).values({ workshopId, prompt });
+		const [created] = await db
+			.insert(question)
+			.values({ workshopId, prompt })
+			.returning({ id: question.id });
+		await db.insert(questionHistory).values({
+			questionId: created.id,
+			actorUserId: locals.user?.id ?? null,
+			action: 'created',
+			oldValue: null,
+			newValue: prompt
+		});
 		return { ok: true };
 	},
 
@@ -90,7 +118,24 @@ export const actions: Actions = {
 		const id = Number(form.get('id'));
 		const status = form.get('status')?.toString() as QuestionStatus;
 		if (!id || !QUESTION_STATUSES.includes(status)) return fail(400, { error: 'Invalid' });
+
+		const [before] = await db
+			.select({ status: question.status })
+			.from(question)
+			.where(eq(question.id, id))
+			.limit(1);
+
 		await db.update(question).set({ status }).where(eq(question.id, id));
+
+		if (before && before.status !== status) {
+			await db.insert(questionHistory).values({
+				questionId: id,
+				actorUserId: locals.user?.id ?? null,
+				action: 'status',
+				oldValue: before.status,
+				newValue: status
+			});
+		}
 		return { ok: true };
 	}
 };

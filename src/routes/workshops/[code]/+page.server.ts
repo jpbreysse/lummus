@@ -4,6 +4,7 @@ import {
 	question,
 	questionComment,
 	questionResponse,
+	questionHistory,
 	workshopParticipant,
 	teamMember,
 	hoursEntry,
@@ -63,6 +64,24 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 				.orderBy(asc(questionComment.createdAt))
 		: [];
 
+	// History — admin only (audit log of question changes)
+	const historyRaw = isAdmin && questionIds.length
+		? await db
+				.select({
+					id: questionHistory.id,
+					questionId: questionHistory.questionId,
+					action: questionHistory.action,
+					oldValue: questionHistory.oldValue,
+					newValue: questionHistory.newValue,
+					createdAt: questionHistory.createdAt,
+					actorName: user.name
+				})
+				.from(questionHistory)
+				.leftJoin(user, eq(user.id, questionHistory.actorUserId))
+				.where(inArray(questionHistory.questionId, questionIds))
+				.orderBy(asc(questionHistory.createdAt))
+		: [];
+
 	// Responses — admins see all, standard users only their own
 	const responsesRaw = questionIds.length
 		? await db
@@ -102,10 +121,18 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		responsesByQuestion.set(r.questionId, list);
 	}
 
+	const historyByQuestion = new Map<number, typeof historyRaw>();
+	for (const h of historyRaw) {
+		const list = historyByQuestion.get(h.questionId) ?? [];
+		list.push(h);
+		historyByQuestion.set(h.questionId, list);
+	}
+
 	const questionsWithComments = questions.map((q) => ({
 		...q,
 		comments: commentsByQuestion.get(q.id) ?? [],
-		responses: responsesByQuestion.get(q.id) ?? []
+		responses: responsesByQuestion.get(q.id) ?? [],
+		history: historyByQuestion.get(q.id) ?? []
 	}));
 
 	const participants = await db
@@ -192,7 +219,29 @@ export const actions: Actions = {
 		if (!id || !prompt) return fail(400, { error: 'Missing fields' });
 		if (!QUESTION_STATUSES.includes(status)) return fail(400, { error: 'Invalid status' });
 
+		const [before] = await db
+			.select({ prompt: question.prompt, answer: question.answer, status: question.status })
+			.from(question)
+			.where(eq(question.id, id))
+			.limit(1);
+
 		await db.update(question).set({ prompt, answer, status }).where(eq(question.id, id));
+
+		if (before) {
+			const rows: { questionId: number; actorUserId: string | null; action: string; oldValue: string | null; newValue: string | null }[] = [];
+			const actor = locals.user?.id ?? null;
+			if (before.prompt !== prompt) {
+				rows.push({ questionId: id, actorUserId: actor, action: 'prompt', oldValue: before.prompt, newValue: prompt });
+			}
+			if ((before.answer ?? '') !== (answer ?? '')) {
+				rows.push({ questionId: id, actorUserId: actor, action: 'answer', oldValue: before.answer, newValue: answer });
+			}
+			if (before.status !== status) {
+				rows.push({ questionId: id, actorUserId: actor, action: 'status', oldValue: before.status, newValue: status });
+			}
+			if (rows.length) await db.insert(questionHistory).values(rows);
+		}
+
 		return { ok: true };
 	},
 
@@ -205,7 +254,18 @@ export const actions: Actions = {
 		const [ws] = await db.select().from(workshop).where(eq(workshop.code, params.code)).limit(1);
 		if (!ws) return fail(404, { error: 'Workshop not found' });
 
-		await db.insert(question).values({ workshopId: ws.id, prompt });
+		const [created] = await db
+			.insert(question)
+			.values({ workshopId: ws.id, prompt })
+			.returning({ id: question.id });
+
+		await db.insert(questionHistory).values({
+			questionId: created.id,
+			actorUserId: locals.user?.id ?? null,
+			action: 'created',
+			oldValue: null,
+			newValue: prompt
+		});
 		return { ok: true };
 	},
 
@@ -214,6 +274,9 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const id = Number(form.get('id'));
 		if (!id) return fail(400, { error: 'Missing id' });
+		// Note: history rows cascade-delete with the question, so we don't log a 'deleted'
+		// event (it would be immediately purged). If you need a tombstone, store history
+		// without the FK or move it to a separate audit table.
 		await db.delete(question).where(eq(question.id, id));
 		return { ok: true };
 	},
