@@ -146,6 +146,7 @@ export const question = pgTable(
 		prompt: text('prompt').notNull(),
 		answer: text('answer'),
 		status: questionStatus('status').notNull().default('open'),
+		published: boolean('published').notNull().default(true),
 		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
 	},
 	(t) => [index('question_workshop_idx').on(t.workshopId)]

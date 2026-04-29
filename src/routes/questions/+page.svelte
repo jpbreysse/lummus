@@ -11,6 +11,8 @@
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import FileDown from '@lucide/svelte/icons/file-down';
 	import Plus from '@lucide/svelte/icons/plus';
+	import Eye from '@lucide/svelte/icons/eye';
+	import EyeOff from '@lucide/svelte/icons/eye-off';
 
 	let { data } = $props();
 	const isAdmin = $derived(data.isAdmin);
@@ -122,6 +124,9 @@
 				<Table.Row>
 					<Table.Head class="w-16">WS</Table.Head>
 					<Table.Head>Prompt</Table.Head>
+					{#if isAdmin}
+						<Table.Head class="w-28">Visibility</Table.Head>
+					{/if}
 					<Table.Head class="w-28">Status</Table.Head>
 					<Table.Head class="w-12"></Table.Head>
 				</Table.Row>
@@ -147,6 +152,39 @@
 								</div>
 							{/if}
 						</Table.Cell>
+						{#if isAdmin}
+							<Table.Cell>
+								<form
+									method="POST"
+									action="?/setPublished"
+									use:enhance={() => {
+										return async ({ update }) => {
+											await update();
+											await invalidateAll();
+										};
+									}}
+								>
+									<input type="hidden" name="id" value={q.id} />
+									<input type="hidden" name="published" value={q.published ? 'false' : 'true'} />
+									<button
+										type="submit"
+										class="text-muted-foreground hover:text-foreground"
+										title={q.published ? 'Click to make draft' : 'Click to publish'}
+										aria-label="Toggle visibility"
+									>
+										{#if q.published}
+											<Badge variant="outline" class="gap-1 text-[10px]">
+												<Eye class="size-3 text-emerald-600" /> published
+											</Badge>
+										{:else}
+											<Badge variant="outline" class="gap-1 border-amber-300 text-[10px]">
+												<EyeOff class="size-3 text-amber-600" /> draft
+											</Badge>
+										{/if}
+									</button>
+								</form>
+							</Table.Cell>
+						{/if}
 						<Table.Cell>
 							{#if isAdmin}
 								<form

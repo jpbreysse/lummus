@@ -23,6 +23,9 @@
 	import MessageSquare from '@lucide/svelte/icons/message-square';
 	import MessageCirclePlus from '@lucide/svelte/icons/message-circle-plus';
 	import History from '@lucide/svelte/icons/history';
+	import Eye from '@lucide/svelte/icons/eye';
+	import EyeOff from '@lucide/svelte/icons/eye-off';
+	import Send from '@lucide/svelte/icons/send';
 	import { page } from '$app/state';
 
 	let { data } = $props();
@@ -75,6 +78,8 @@
 		answered: data.questions.filter((q) => q.status === 'answered').length,
 		deferred: data.questions.filter((q) => q.status === 'deferred').length
 	});
+
+	const draftCount = $derived(data.questions.filter((q) => !q.published).length);
 
 	let editWorkshopOpen = $state(false);
 	let editingQuestionId = $state<number | null>(null);
@@ -144,9 +149,27 @@
 				<div class="flex items-center justify-between">
 					<Card.Title class="text-base">Questions ({filteredQuestions.length})</Card.Title>
 					{#if isAdmin}
-						<Button size="sm" variant="outline" class="gap-1" onclick={() => (addQuestionOpen = true)}>
-							<Plus class="size-3.5" /> Add
-						</Button>
+						<div class="flex gap-2">
+							{#if draftCount > 0}
+								<form
+									method="POST"
+									action="?/publishAll"
+									use:enhance={() => {
+										return async ({ update }) => {
+											await update();
+											await invalidateAll();
+										};
+									}}
+								>
+									<Button type="submit" size="sm" class="gap-1">
+										<Send class="size-3.5" /> Publish {draftCount} draft{draftCount > 1 ? 's' : ''}
+									</Button>
+								</form>
+							{/if}
+							<Button size="sm" variant="outline" class="gap-1" onclick={() => (addQuestionOpen = true)}>
+								<Plus class="size-3.5" /> Add
+							</Button>
+						</div>
 					{/if}
 				</div>
 				<div class="mt-2 flex gap-1 text-sm">
@@ -203,6 +226,35 @@
 							</div>
 							<Badge variant={questionStatusVariant(q.status)} class="shrink-0">{q.status}</Badge>
 							{#if isAdmin}
+								<form
+									method="POST"
+									action="?/setPublished"
+									use:enhance={() => {
+										return async ({ update }) => {
+											await update();
+											await invalidateAll();
+										};
+									}}
+								>
+									<input type="hidden" name="id" value={q.id} />
+									<input type="hidden" name="published" value={q.published ? 'false' : 'true'} />
+									<button
+										type="submit"
+										class="text-muted-foreground hover:text-foreground shrink-0"
+										aria-label={q.published ? 'Unpublish (make draft)' : 'Publish'}
+										title={q.published ? 'Click to make draft' : 'Click to publish'}
+									>
+										{#if q.published}
+											<Badge variant="outline" class="gap-1 text-[10px]">
+												<Eye class="size-3 text-emerald-600" /> published
+											</Badge>
+										{:else}
+											<Badge variant="outline" class="gap-1 border-amber-300 text-[10px]">
+												<EyeOff class="size-3 text-amber-600" /> draft
+											</Badge>
+										{/if}
+									</button>
+								</form>
 								<button
 									type="button"
 									class="text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100"

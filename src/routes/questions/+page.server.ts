@@ -17,12 +17,14 @@ export const load: PageServerLoad = async ({ locals }) => {
 			prompt: question.prompt,
 			answer: question.answer,
 			status: question.status,
+			published: question.published,
 			workshopCode: workshop.code,
 			workshopTitle: workshop.title,
 			weekNumber: workshop.weekNumber
 		})
 		.from(question)
 		.innerJoin(workshop, eq(question.workshopId, workshop.id))
+		.where(isAdmin ? undefined : eq(question.published, true))
 		.orderBy(asc(workshop.weekNumber), asc(question.id));
 
 	// Own responses per question (for standard users to see their own answer summary)
@@ -109,6 +111,34 @@ export const actions: Actions = {
 			oldValue: null,
 			newValue: prompt
 		});
+		return { ok: true };
+	},
+
+	setPublished: async ({ request, locals }) => {
+		if (!requireAdmin(locals)) return fail(403, { error: 'Admin only' });
+		const form = await request.formData();
+		const id = Number(form.get('id'));
+		const published = form.get('published') === 'true';
+		if (!id) return fail(400, { error: 'Missing id' });
+
+		const [before] = await db
+			.select({ published: question.published })
+			.from(question)
+			.where(eq(question.id, id))
+			.limit(1);
+		if (!before) return fail(404, { error: 'Not found' });
+
+		await db.update(question).set({ published }).where(eq(question.id, id));
+
+		if (before.published !== published) {
+			await db.insert(questionHistory).values({
+				questionId: id,
+				actorUserId: locals.user?.id ?? null,
+				action: 'published',
+				oldValue: before.published ? 'published' : 'draft',
+				newValue: published ? 'published' : 'draft'
+			});
+		}
 		return { ok: true };
 	},
 

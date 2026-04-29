@@ -10,7 +10,9 @@ import {
 } from '$lib/server/db/schema';
 import { and, asc, desc, eq, gt, isNotNull, sql } from 'drizzle-orm';
 
-export const load = async () => {
+export const load = async ({ locals }) => {
+	const isAdmin = locals.user?.role === 'admin';
+	const pubFilter = isAdmin ? sql`true` : sql`${question.published} = true`;
 	const statusCounts = await db
 		.select({
 			status: workshop.status,
@@ -37,7 +39,8 @@ export const load = async () => {
 			totalQuestions: sql<number>`count(*)::int`,
 			answered: sql<number>`sum(case when ${question.status} = 'answered' then 1 else 0 end)::int`
 		})
-		.from(question);
+		.from(question)
+		.where(pubFilter);
 
 	const workshopProgress = await db
 		.select({
@@ -47,8 +50,8 @@ export const load = async () => {
 			status: workshop.status,
 			weekNumber: workshop.weekNumber,
 			scheduledAt: workshop.scheduledAt,
-			total: sql<number>`(select count(*)::int from ${question} where ${question.workshopId} = ${workshop.id})`,
-			answered: sql<number>`(select count(*)::int from ${question} where ${question.workshopId} = ${workshop.id} and ${question.status} = 'answered')`,
+			total: sql<number>`(select count(*)::int from ${question} where ${question.workshopId} = ${workshop.id} and ${pubFilter})`,
+			answered: sql<number>`(select count(*)::int from ${question} where ${question.workshopId} = ${workshop.id} and ${question.status} = 'answered' and ${pubFilter})`,
 			participants: sql<number>`(select count(*)::int from ${workshopParticipant} where ${workshopParticipant.workshopId} = ${workshop.id})`,
 			hours: sql<string>`coalesce((select sum(${hoursEntry.hours}) from ${hoursEntry} where ${hoursEntry.workshopId} = ${workshop.id}), 0)`
 		})

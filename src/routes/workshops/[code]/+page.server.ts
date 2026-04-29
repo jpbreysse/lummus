@@ -29,7 +29,11 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	const rawQuestions = await db
 		.select()
 		.from(question)
-		.where(eq(question.workshopId, ws.id))
+		.where(
+			isAdmin
+				? eq(question.workshopId, ws.id)
+				: and(eq(question.workshopId, ws.id), eq(question.published, true))
+		)
 		.orderBy(asc(question.id));
 
 	// Non-admins never see the consolidated answer
@@ -267,6 +271,66 @@ export const actions: Actions = {
 			newValue: prompt
 		});
 		return { ok: true };
+	},
+
+	setPublished: async ({ request, locals }) => {
+		if (!requireAdmin(locals)) return fail(403, { error: 'Admin only' });
+		const form = await request.formData();
+		const id = Number(form.get('id'));
+		const published = form.get('published') === 'true';
+		if (!id) return fail(400, { error: 'Missing id' });
+
+		const [before] = await db
+			.select({ published: question.published })
+			.from(question)
+			.where(eq(question.id, id))
+			.limit(1);
+		if (!before) return fail(404, { error: 'Not found' });
+
+		await db.update(question).set({ published }).where(eq(question.id, id));
+
+		if (before.published !== published) {
+			await db.insert(questionHistory).values({
+				questionId: id,
+				actorUserId: locals.user?.id ?? null,
+				action: 'published',
+				oldValue: before.published ? 'published' : 'draft',
+				newValue: published ? 'published' : 'draft'
+			});
+		}
+		return { ok: true };
+	},
+
+	publishAll: async ({ request, params, locals }) => {
+		if (!requireAdmin(locals)) return fail(403, { error: 'Admin only' });
+
+		const [ws] = await db.select().from(workshop).where(eq(workshop.code, params.code)).limit(1);
+		if (!ws) return fail(404, { error: 'Workshop not found' });
+
+		const drafts = await db
+			.select({ id: question.id })
+			.from(question)
+			.where(and(eq(question.workshopId, ws.id), eq(question.published, false)));
+
+		if (!drafts.length) return { ok: true, count: 0 };
+
+		await db
+			.update(question)
+			.set({ published: true })
+			.where(and(eq(question.workshopId, ws.id), eq(question.published, false)));
+
+		const actor = locals.user?.id ?? null;
+		await db.insert(questionHistory).values(
+			drafts.map((d) => ({
+				questionId: d.id,
+				actorUserId: actor,
+				action: 'published',
+				oldValue: 'draft',
+				newValue: 'published'
+			}))
+		);
+
+		return { ok: true, count: drafts.length };
 	},
 
 	deleteQuestion: async ({ request, locals }) => {

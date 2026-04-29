@@ -22,6 +22,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 			prompt: question.prompt,
 			answer: question.answer,
 			status: question.status,
+			published: question.published,
 			workshopCode: workshop.code,
 			workshopTitle: workshop.title,
 			weekNumber: workshop.weekNumber
@@ -79,6 +80,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 		{ header: 'Workshop', key: 'ws', width: 10 },
 		{ header: 'Week', key: 'week', width: 6 },
 		{ header: 'Q#', key: 'qnum', width: 5 },
+		{ header: 'Visibility', key: 'visibility', width: 11 },
 		{ header: 'Prompt', key: 'prompt', width: 60 },
 		{ header: 'Status', key: 'status', width: 12 },
 		{ header: 'Official answer', key: 'answer', width: 60 },
@@ -90,6 +92,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 			ws: q.workshopCode,
 			week: q.weekNumber,
 			qnum: qNumberMap.get(q.id),
+			visibility: q.published ? 'published' : 'draft',
 			prompt: q.prompt,
 			status: q.status,
 			answer: q.answer ?? '',
