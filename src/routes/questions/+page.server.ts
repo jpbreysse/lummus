@@ -40,7 +40,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 		ownResponse: ownByQ.get(r.id) ?? null
 	}));
 
-	return { questions, isAdmin };
+	const workshops = await db
+		.select({ id: workshop.id, code: workshop.code, title: workshop.title })
+		.from(workshop)
+		.orderBy(asc(workshop.weekNumber));
+
+	return { questions, isAdmin, workshops };
 };
 
 const requireAdmin = (locals: App.Locals) => locals.user?.role === 'admin';
@@ -58,6 +63,24 @@ export const actions: Actions = {
 		if (!QUESTION_STATUSES.includes(status)) return fail(400, { error: 'Invalid status' });
 
 		await db.update(question).set({ prompt, answer, status }).where(eq(question.id, id));
+		return { ok: true };
+	},
+
+	create: async ({ request, locals }) => {
+		if (!requireAdmin(locals)) return fail(403, { error: 'Admin only' });
+		const form = await request.formData();
+		const workshopId = Number(form.get('workshopId'));
+		const prompt = form.get('prompt')?.toString().trim();
+		if (!workshopId || !prompt) return fail(400, { error: 'Missing fields' });
+
+		const [ws] = await db
+			.select({ id: workshop.id })
+			.from(workshop)
+			.where(eq(workshop.id, workshopId))
+			.limit(1);
+		if (!ws) return fail(404, { error: 'Workshop not found' });
+
+		await db.insert(question).values({ workshopId, prompt });
 		return { ok: true };
 	},
 

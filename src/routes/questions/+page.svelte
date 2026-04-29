@@ -10,10 +10,12 @@
 	import { invalidateAll } from '$app/navigation';
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import FileDown from '@lucide/svelte/icons/file-down';
+	import Plus from '@lucide/svelte/icons/plus';
 
 	let { data } = $props();
 	const isAdmin = $derived(data.isAdmin);
 	let editingId = $state<number | null>(null);
+	let createOpen = $state(false);
 
 	type Status = 'open' | 'answered' | 'deferred';
 	let filter = $state<'all' | Status>('all');
@@ -59,9 +61,14 @@
 			<p class="text-muted-foreground text-sm">Across all workshops</p>
 		</div>
 		{#if isAdmin}
-			<Button href="/questions/export" variant="outline" size="sm" class="gap-1">
-				<FileDown class="size-4" /> Export Excel
-			</Button>
+			<div class="flex gap-2">
+				<Button size="sm" class="gap-1" onclick={() => (createOpen = true)}>
+					<Plus class="size-4" /> Add question
+				</Button>
+				<Button href="/questions/export" variant="outline" size="sm" class="gap-1">
+					<FileDown class="size-4" /> Export Excel
+				</Button>
+			</div>
 		{/if}
 	</header>
 
@@ -186,6 +193,52 @@
 		</Table.Root>
 	</div>
 </div>
+
+<Dialog.Root bind:open={createOpen}>
+	<Dialog.Content>
+		<Dialog.Header>
+			<Dialog.Title>Add question</Dialog.Title>
+		</Dialog.Header>
+		<form
+			method="POST"
+			action="?/create"
+			class="space-y-4"
+			use:enhance={() => {
+				return async ({ update, formElement }) => {
+					await update();
+					formElement.reset();
+					createOpen = false;
+					await invalidateAll();
+				};
+			}}
+		>
+			<div class="space-y-2">
+				<Label for="c-workshop">Workshop</Label>
+				<select
+					id="c-workshop"
+					name="workshopId"
+					required
+					class="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
+				>
+					<option value="" disabled selected>Choose workshop…</option>
+					{#each data.workshops as w (w.id)}
+						<option value={w.id}>{w.code} — {w.title}</option>
+					{/each}
+				</select>
+			</div>
+			<div class="space-y-2">
+				<Label for="c-prompt">Prompt</Label>
+				<Textarea id="c-prompt" name="prompt" rows={3} required />
+			</div>
+			<Dialog.Footer>
+				<Button variant="outline" type="button" onclick={() => (createOpen = false)}>
+					Cancel
+				</Button>
+				<Button type="submit" class="gap-1"><Plus class="size-3.5" /> Add</Button>
+			</Dialog.Footer>
+		</form>
+	</Dialog.Content>
+</Dialog.Root>
 
 {#if editingId != null}
 	{@const q = data.questions.find((x) => x.id === editingId)}
