@@ -34,18 +34,11 @@
 	const isAdmin = $derived(data.isAdmin);
 	let expandedQuestions = $state<Set<number>>(new Set());
 	let answerMode = $state<Record<number, 'named' | 'anonymous'>>({});
-	let anonJustSubmitted = $state<Record<number, number>>({});
 
-	const flashAnonSubmitted = (id: number) => {
-		const stamp = Date.now();
-		anonJustSubmitted = { ...anonJustSubmitted, [id]: stamp };
-		setTimeout(() => {
-			if (anonJustSubmitted[id] === stamp) {
-				const { [id]: _, ...rest } = anonJustSubmitted;
-				anonJustSubmitted = rest;
-			}
-		}, 4000);
-	};
+	// Per-question session memory of the body the user just submitted
+	// anonymously. Lives only in this browser tab — gone on reload. The
+	// DB row has no user_id, so this is the only link the user can keep.
+	let anonSubmittedBody = $state<Record<number, string>>({});
 
 	const toggleExpanded = (id: number) => {
 		const next = new Set(expandedQuestions);
@@ -368,17 +361,45 @@
 												</Button>
 											</div>
 										</form>
+									{:else if anonSubmittedBody[q.id]}
+										<div class="space-y-2">
+											<div class="flex items-center gap-1.5 text-[11px] text-emerald-600">
+												<CircleCheck class="size-3.5" /> Submitted anonymously
+											</div>
+											<div class="rounded-md border bg-muted/30 p-3">
+												<p class="text-sm whitespace-pre-wrap">{anonSubmittedBody[q.id]}</p>
+											</div>
+											<p class="text-muted-foreground text-[11px]">
+												Only this browser session shows you what you wrote. If you reload the page, this will be gone — the response is in the database with no link back to you.
+											</p>
+											<div class="flex justify-end">
+												<button
+													type="button"
+													class="text-muted-foreground hover:text-foreground text-xs underline"
+													onclick={() => {
+														const { [q.id]: _, ...rest } = anonSubmittedBody;
+														anonSubmittedBody = rest;
+													}}
+												>
+													Submit another anonymously
+												</button>
+											</div>
+										</div>
 									{:else}
 										<form
 											method="POST"
 											action="?/submitAnonymousResponse"
 											class="flex flex-col gap-2"
-											use:enhance={() => {
+											use:enhance={({ formData }) => {
+												const pending = String(formData.get('body') ?? '');
 												return async ({ update, result, formElement }) => {
 													await update();
 													if (result.type === 'success') {
+														anonSubmittedBody = {
+															...anonSubmittedBody,
+															[q.id]: pending
+														};
 														formElement.reset();
-														flashAnonSubmitted(q.id);
 													}
 													await invalidateAll();
 												};
@@ -386,7 +407,7 @@
 										>
 											<input type="hidden" name="questionId" value={q.id} />
 											<p class="text-muted-foreground rounded-md border border-amber-300 bg-amber-50/50 p-2 text-[11px] dark:bg-amber-950/20">
-												⚠️ Anonymous responses cannot be edited or traced back to you — not even by an admin. You won't see this response again either.
+												⚠️ Anonymous responses cannot be edited or traced back to you — not even by an admin.
 											</p>
 											<Textarea
 												name="body"
@@ -395,14 +416,7 @@
 												placeholder="Your anonymous answer…"
 												class="text-sm"
 											/>
-											<div class="flex items-center justify-between">
-												{#if anonJustSubmitted[q.id]}
-													<span class="flex items-center gap-1 text-[11px] text-emerald-600">
-														<CircleCheck class="size-3" /> Submitted anonymously
-													</span>
-												{:else}
-													<span></span>
-												{/if}
+											<div class="flex justify-end">
 												<Button type="submit" size="sm" class="gap-1">
 													<VenetianMask class="size-3" /> Submit anonymously
 												</Button>
