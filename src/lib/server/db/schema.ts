@@ -232,6 +232,22 @@ export const questionResponse = pgTable(
 	]
 );
 
+// Anonymous responses — no user_id by design. Once posted, no one (admin
+// included) can trace them back to the author. This is intentional and
+// permanent: the row stores only the body and timestamp.
+export const questionAnonymousResponse = pgTable(
+	'question_anonymous_response',
+	{
+		id: serial('id').primaryKey(),
+		questionId: integer('question_id')
+			.notNull()
+			.references(() => question.id, { onDelete: 'cascade' }),
+		body: text('body').notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(t) => [index('question_anonymous_response_question_idx').on(t.questionId)]
+);
+
 export const questionComment = pgTable(
 	'question_comment',
 	{

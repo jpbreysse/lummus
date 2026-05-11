@@ -26,12 +26,26 @@
 	import Eye from '@lucide/svelte/icons/eye';
 	import EyeOff from '@lucide/svelte/icons/eye-off';
 	import Send from '@lucide/svelte/icons/send';
+	import VenetianMask from '@lucide/svelte/icons/venetian-mask';
 	import { page } from '$app/state';
 
 	let { data } = $props();
 	const currentUserId = $derived(page.data.user?.id ?? null);
 	const isAdmin = $derived(data.isAdmin);
 	let expandedQuestions = $state<Set<number>>(new Set());
+	let answerMode = $state<Record<number, 'named' | 'anonymous'>>({});
+	let anonJustSubmitted = $state<Record<number, number>>({});
+
+	const flashAnonSubmitted = (id: number) => {
+		const stamp = Date.now();
+		anonJustSubmitted = { ...anonJustSubmitted, [id]: stamp };
+		setTimeout(() => {
+			if (anonJustSubmitted[id] === stamp) {
+				const { [id]: _, ...rest } = anonJustSubmitted;
+				anonJustSubmitted = rest;
+			}
+		}, 4000);
+	};
 
 	const toggleExpanded = (id: number) => {
 		const next = new Set(expandedQuestions);
@@ -192,6 +206,7 @@
 					{@const expanded = expandedQuestions.has(q.id)}
 					{@const ownResponse = q.responses.find((r) => r.userId === currentUserId)}
 					{@const otherResponses = q.responses.filter((r) => r.userId !== currentUserId)}
+					{@const mode = answerMode[q.id] ?? 'named'}
 					<div class="hover:bg-accent/30 group rounded-md border p-3 transition-colors">
 						<div class="flex items-start gap-3">
 							<span class="text-muted-foreground w-5 font-mono text-xs">{i + 1}</span>
@@ -270,11 +285,11 @@
 							<div class="border-border/60 mt-3 ml-8 space-y-4 border-l-2 pl-3">
 								<!-- Own response -->
 								<div>
-									<div class="mb-1 flex items-center justify-between">
+									<div class="mb-2 flex items-center justify-between">
 										<span class="text-muted-foreground text-[11px] font-medium uppercase tracking-wide">
 											Your response
 										</span>
-										{#if ownResponse}
+										{#if mode === 'named' && ownResponse}
 											<form
 												method="POST"
 												action="?/deleteResponse"
@@ -295,39 +310,105 @@
 											</form>
 										{/if}
 									</div>
-									<form
-										method="POST"
-										action="?/saveResponse"
-										class="flex flex-col gap-2"
-										use:enhance={() => {
-											return async ({ update }) => {
-												await update({ reset: false });
-												await invalidateAll();
-											};
-										}}
-									>
-										<input type="hidden" name="questionId" value={q.id} />
-										<Textarea
-											name="body"
-											rows={3}
-											required
-											placeholder="Your answer to this question…"
-											value={ownResponse?.body ?? ''}
-											class="text-sm"
-										/>
-										<div class="flex items-center justify-between">
-											{#if ownResponse}
-												<span class="text-muted-foreground text-[11px]">
-													Updated {fmtCommentTime(ownResponse.updatedAt)}
-												</span>
-											{:else}
-												<span></span>
-											{/if}
-											<Button type="submit" size="sm">
-												{ownResponse ? 'Update' : 'Save'}
-											</Button>
-										</div>
-									</form>
+
+									<div class="mb-2 flex gap-1 text-xs">
+										<button
+											type="button"
+											class="hover:bg-accent flex items-center gap-1 rounded-md border px-2.5 py-1 transition-colors {mode ===
+											'named'
+												? 'bg-accent font-medium'
+												: 'text-muted-foreground'}"
+											onclick={() => (answerMode = { ...answerMode, [q.id]: 'named' })}
+										>
+											As me
+										</button>
+										<button
+											type="button"
+											class="hover:bg-accent flex items-center gap-1 rounded-md border px-2.5 py-1 transition-colors {mode ===
+											'anonymous'
+												? 'bg-accent font-medium'
+												: 'text-muted-foreground'}"
+											onclick={() => (answerMode = { ...answerMode, [q.id]: 'anonymous' })}
+										>
+											<VenetianMask class="size-3" /> Anonymous
+										</button>
+									</div>
+
+									{#if mode === 'named'}
+										<form
+											method="POST"
+											action="?/saveResponse"
+											class="flex flex-col gap-2"
+											use:enhance={() => {
+												return async ({ update }) => {
+													await update({ reset: false });
+													await invalidateAll();
+												};
+											}}
+										>
+											<input type="hidden" name="questionId" value={q.id} />
+											<Textarea
+												name="body"
+												rows={3}
+												required
+												placeholder="Your answer to this question…"
+												value={ownResponse?.body ?? ''}
+												class="text-sm"
+											/>
+											<div class="flex items-center justify-between">
+												{#if ownResponse}
+													<span class="text-muted-foreground text-[11px]">
+														Updated {fmtCommentTime(ownResponse.updatedAt)}
+													</span>
+												{:else}
+													<span></span>
+												{/if}
+												<Button type="submit" size="sm">
+													{ownResponse ? 'Update' : 'Save'}
+												</Button>
+											</div>
+										</form>
+									{:else}
+										<form
+											method="POST"
+											action="?/submitAnonymousResponse"
+											class="flex flex-col gap-2"
+											use:enhance={() => {
+												return async ({ update, result, formElement }) => {
+													await update();
+													if (result.type === 'success') {
+														formElement.reset();
+														flashAnonSubmitted(q.id);
+													}
+													await invalidateAll();
+												};
+											}}
+										>
+											<input type="hidden" name="questionId" value={q.id} />
+											<p class="text-muted-foreground rounded-md border border-amber-300 bg-amber-50/50 p-2 text-[11px] dark:bg-amber-950/20">
+												⚠️ Anonymous responses cannot be edited or traced back to you — not even by an admin. You won't see this response again either.
+											</p>
+											<Textarea
+												name="body"
+												rows={3}
+												required
+												placeholder="Your anonymous answer…"
+												class="text-sm"
+											/>
+											<div class="flex items-center justify-between">
+												{#if anonJustSubmitted[q.id]}
+													<span class="flex items-center gap-1 text-[11px] text-emerald-600">
+														<CircleCheck class="size-3" /> Submitted anonymously
+													</span>
+												{:else}
+													<span></span>
+												{/if}
+												<Button type="submit" size="sm" class="gap-1">
+													<VenetianMask class="size-3" /> Submit anonymously
+												</Button>
+											</div>
+										</form>
+									{/if}
 								</div>
 
 								{#if isAdmin && otherResponses.length}
@@ -364,6 +445,24 @@
 															<Trash2 class="size-3" />
 														</button>
 													</form>
+												</div>
+											{/each}
+										</div>
+									</div>
+								{/if}
+
+								{#if isAdmin && q.anonymousResponses.length}
+									<div>
+										<div class="text-muted-foreground mb-1 flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide">
+											<VenetianMask class="size-3" /> Anonymous responses ({q.anonymousResponses.length})
+										</div>
+										<div class="space-y-2">
+											{#each q.anonymousResponses as a (a.id)}
+												<div>
+													<div class="text-muted-foreground text-[11px]">
+														Anonymous · {fmtCommentTime(a.createdAt)}
+													</div>
+													<p class="text-sm whitespace-pre-wrap">{a.body}</p>
 												</div>
 											{/each}
 										</div>

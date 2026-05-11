@@ -4,6 +4,7 @@ import {
 	question,
 	questionComment,
 	questionResponse,
+	questionAnonymousResponse,
 	questionHistory,
 	workshopParticipant,
 	teamMember,
@@ -66,6 +67,20 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 							)
 				)
 				.orderBy(asc(questionComment.createdAt))
+		: [];
+
+	// Anonymous responses — admin only (cannot be traced back to a user)
+	const anonResponsesRaw = isAdmin && questionIds.length
+		? await db
+				.select({
+					id: questionAnonymousResponse.id,
+					questionId: questionAnonymousResponse.questionId,
+					body: questionAnonymousResponse.body,
+					createdAt: questionAnonymousResponse.createdAt
+				})
+				.from(questionAnonymousResponse)
+				.where(inArray(questionAnonymousResponse.questionId, questionIds))
+				.orderBy(asc(questionAnonymousResponse.createdAt))
 		: [];
 
 	// History — admin only (audit log of question changes)
@@ -132,10 +147,18 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		historyByQuestion.set(h.questionId, list);
 	}
 
+	const anonByQuestion = new Map<number, typeof anonResponsesRaw>();
+	for (const a of anonResponsesRaw) {
+		const list = anonByQuestion.get(a.questionId) ?? [];
+		list.push(a);
+		anonByQuestion.set(a.questionId, list);
+	}
+
 	const questionsWithComments = questions.map((q) => ({
 		...q,
 		comments: commentsByQuestion.get(q.id) ?? [],
 		responses: responsesByQuestion.get(q.id) ?? [],
+		anonymousResponses: anonByQuestion.get(q.id) ?? [],
 		history: historyByQuestion.get(q.id) ?? []
 	}));
 
@@ -398,6 +421,19 @@ export const actions: Actions = {
 			authorUserId: locals.user?.id ?? null
 		});
 		return { ok: true };
+	},
+
+	submitAnonymousResponse: async ({ request, locals }) => {
+		// User must be signed in to submit (rate-limit protection),
+		// but their identity is NEVER stored against the row.
+		if (!locals.user) return fail(401, { error: 'Not signed in' });
+		const form = await request.formData();
+		const questionId = Number(form.get('questionId'));
+		const body = form.get('body')?.toString().trim();
+		if (!questionId || !body) return fail(400, { error: 'Missing fields' });
+
+		await db.insert(questionAnonymousResponse).values({ questionId, body });
+		return { ok: true, anonymous: true };
 	},
 
 	saveResponse: async ({ request, locals }) => {
