@@ -9,6 +9,7 @@
 	import Clock from '@lucide/svelte/icons/clock';
 	import Megaphone from '@lucide/svelte/icons/megaphone';
 	import UserRound from '@lucide/svelte/icons/user-round';
+	import BarChart3 from '@lucide/svelte/icons/bar-chart-3';
 	import LogOut from '@lucide/svelte/icons/log-out';
 	import { authClient } from '$lib/auth-client';
 	import { goto } from '$app/navigation';
@@ -29,7 +30,12 @@
 			{ href: '/questions', label: 'Questions', icon: MessageCircleQuestion },
 			{ href: '/hours', label: 'Hours', icon: Clock },
 			{ href: '/announcements', label: 'Announcements', icon: Megaphone },
-			...(isAdmin ? [{ href: '/users', label: 'Users', icon: UserRound }] : [])
+			...(isAdmin
+				? [
+						{ href: '/reports', label: 'Reports', icon: BarChart3 },
+						{ href: '/users', label: 'Users', icon: UserRound }
+					]
+				: [])
 		]
 	);
 
