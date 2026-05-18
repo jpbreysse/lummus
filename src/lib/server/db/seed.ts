@@ -1,9 +1,11 @@
 import 'dotenv/config';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
+import { randomBytes } from 'node:crypto';
+import { inArray, like } from 'drizzle-orm';
 import {
 	workshop,
-	teamMember,
+	user,
 	workshopParticipant,
 	question,
 	hoursEntry
@@ -15,12 +17,13 @@ const client = postgres(process.env.DATABASE_URL);
 const db = drizzle(client);
 
 async function main() {
-	console.log('→ Clearing existing data…');
+	console.log('→ Clearing seed-managed data…');
 	await db.delete(hoursEntry);
 	await db.delete(question);
 	await db.delete(workshopParticipant);
 	await db.delete(workshop);
-	await db.delete(teamMember);
+	// Only remove stakeholder-only users seeded previously; preserve real login users
+	await db.delete(user).where(like(user.id, 'stake_seed_%'));
 
 	console.log('→ Inserting workshops…');
 	const [w1, w2, w3, w4] = await db
@@ -72,29 +75,28 @@ async function main() {
 		['W4', w4]
 	]);
 
-	console.log('→ Inserting team members…');
-	const members = await db
-		.insert(teamMember)
-		.values([
-			{ name: 'External Programme Lead', role: 'External Programme Lead', organization: 'External' },
-			{ name: 'Designated Project Lead', role: 'Designated Project Lead (DPL)', organization: 'Lummus' },
-			{ name: 'Project Sponsor', role: 'Project Sponsor', organization: 'Lummus' },
-			{ name: 'Senior Consultant A', role: 'Senior Consultant', organization: 'Lummus' },
-			{ name: 'Senior Consultant B', role: 'Senior Consultant', organization: 'Lummus' },
-			{ name: 'Finance / Operations Lead', role: 'Finance / Operations Lead', organization: 'Lummus' },
-			{ name: 'IT Lead', role: 'IT Lead', organization: 'Lummus' }
-		])
-		.returning();
-
-	const member = Object.fromEntries(members.map((m) => [m.name, m]));
+	console.log('→ Inserting stakeholder users…');
+	// Seeded users get a stable synthetic id prefixed with 'stake_seed_' so
+	// re-running the seed only wipes its own rows (real login users untouched).
+	const stakeholders: { key: string; row: Parameters<typeof db.insert<typeof user>>[0] extends never ? never : (typeof user.$inferInsert) }[] = [
+		{ key: 'External Programme Lead', row: { id: 'stake_seed_extlead', name: 'External Programme Lead', email: 'stakeholder-extlead@lummus.local', workshopRole: 'External Programme Lead', organization: 'External', role: 'user' } },
+		{ key: 'Designated Project Lead', row: { id: 'stake_seed_dpl', name: 'Designated Project Lead', email: 'stakeholder-dpl@lummus.local', workshopRole: 'Designated Project Lead (DPL)', organization: 'Lummus', role: 'user' } },
+		{ key: 'Project Sponsor', row: { id: 'stake_seed_sponsor', name: 'Project Sponsor', email: 'stakeholder-sponsor@lummus.local', workshopRole: 'Project Sponsor', organization: 'Lummus', role: 'user' } },
+		{ key: 'Senior Consultant A', row: { id: 'stake_seed_sca', name: 'Senior Consultant A', email: 'stakeholder-sca@lummus.local', workshopRole: 'Senior Consultant', organization: 'Lummus', role: 'user' } },
+		{ key: 'Senior Consultant B', row: { id: 'stake_seed_scb', name: 'Senior Consultant B', email: 'stakeholder-scb@lummus.local', workshopRole: 'Senior Consultant', organization: 'Lummus', role: 'user' } },
+		{ key: 'Finance / Operations Lead', row: { id: 'stake_seed_fin', name: 'Finance / Operations Lead', email: 'stakeholder-fin@lummus.local', workshopRole: 'Finance / Operations Lead', organization: 'Lummus', role: 'user' } },
+		{ key: 'IT Lead', row: { id: 'stake_seed_it', name: 'IT Lead', email: 'stakeholder-it@lummus.local', workshopRole: 'IT Lead', organization: 'Lummus', role: 'user' } }
+	];
+	await db.insert(user).values(stakeholders.map((s) => s.row));
+	const member = Object.fromEntries(stakeholders.map((s) => [s.key, { id: s.row.id }]));
 
 	console.log('→ Linking participants to workshops…');
-	const participations: { workshopId: number; teamMemberId: number }[] = [];
+	const participations: { workshopId: number; userId: string }[] = [];
 	const link = (name: string, codes: string[]) => {
 		for (const c of codes) {
 			participations.push({
 				workshopId: byCode.get(c)!.id,
-				teamMemberId: member[name].id
+				userId: member[name].id
 			});
 		}
 	};
@@ -109,15 +111,15 @@ async function main() {
 
 	console.log('→ Logging hours…');
 	await db.insert(hoursEntry).values([
-		{ workshopId: w1.id, teamMemberId: member['External Programme Lead'].id, kind: 'prep+session+synthesis', hours: '8' },
-		{ workshopId: w2.id, teamMemberId: member['External Programme Lead'].id, kind: 'prep+session+synthesis', hours: '8' },
-		{ workshopId: w3.id, teamMemberId: member['External Programme Lead'].id, kind: 'prep+session+synthesis', hours: '8' },
-		{ workshopId: w4.id, teamMemberId: member['External Programme Lead'].id, kind: 'prep+session+synthesis', hours: '8' },
-		{ workshopId: null, teamMemberId: member['External Programme Lead'].id, kind: 'deliverables writing', hours: '8' },
-		{ workshopId: w1.id, teamMemberId: member['Designated Project Lead'].id, kind: 'session + debrief', hours: '2.5' },
-		{ workshopId: w2.id, teamMemberId: member['Designated Project Lead'].id, kind: 'session + debrief', hours: '2.5' },
-		{ workshopId: w3.id, teamMemberId: member['Designated Project Lead'].id, kind: 'session + debrief', hours: '2.5' },
-		{ workshopId: w4.id, teamMemberId: member['Designated Project Lead'].id, kind: 'session + debrief', hours: '2.5' }
+		{ workshopId: w1.id, userId: member['External Programme Lead'].id, kind: 'prep+session+synthesis', hours: '8' },
+		{ workshopId: w2.id, userId: member['External Programme Lead'].id, kind: 'prep+session+synthesis', hours: '8' },
+		{ workshopId: w3.id, userId: member['External Programme Lead'].id, kind: 'prep+session+synthesis', hours: '8' },
+		{ workshopId: w4.id, userId: member['External Programme Lead'].id, kind: 'prep+session+synthesis', hours: '8' },
+		{ workshopId: null, userId: member['External Programme Lead'].id, kind: 'deliverables writing', hours: '8' },
+		{ workshopId: w1.id, userId: member['Designated Project Lead'].id, kind: 'session + debrief', hours: '2.5' },
+		{ workshopId: w2.id, userId: member['Designated Project Lead'].id, kind: 'session + debrief', hours: '2.5' },
+		{ workshopId: w3.id, userId: member['Designated Project Lead'].id, kind: 'session + debrief', hours: '2.5' },
+		{ workshopId: w4.id, userId: member['Designated Project Lead'].id, kind: 'session + debrief', hours: '2.5' }
 	]);
 
 	console.log('→ Inserting questions…');

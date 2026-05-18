@@ -14,7 +14,7 @@
 	let { data } = $props();
 
 	let addOpen = $state(false);
-	let editingId = $state<number | null>(null);
+	let editingId = $state<string | null>(null);
 </script>
 
 <div class="max-w-7xl px-8 py-8">
@@ -42,8 +42,13 @@
 			<Table.Body>
 				{#each data.members as m (m.id)}
 					<Table.Row class="group">
-						<Table.Cell class="font-medium">{m.name}</Table.Cell>
-						<Table.Cell class="text-muted-foreground">{m.role ?? '—'}</Table.Cell>
+						<Table.Cell class="font-medium">
+							{m.name}
+							{#if m.role === 'admin'}
+								<Badge variant="outline" class="ml-2 text-[10px]">admin</Badge>
+							{/if}
+						</Table.Cell>
+						<Table.Cell class="text-muted-foreground">{m.workshopRole ?? '—'}</Table.Cell>
 						<Table.Cell class="text-muted-foreground">{m.organization ?? '—'}</Table.Cell>
 						<Table.Cell>
 							<div class="flex gap-1">
@@ -146,7 +151,7 @@
 					<div class="grid grid-cols-2 gap-3">
 						<div class="space-y-2">
 							<Label for="e-role">Role</Label>
-							<Input id="e-role" name="role" value={m.role ?? ''} />
+							<Input id="e-role" name="role" value={m.workshopRole ?? ''} />
 						</div>
 						<div class="space-y-2">
 							<Label for="e-org">Organization</Label>

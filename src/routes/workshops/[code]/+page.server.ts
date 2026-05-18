@@ -7,12 +7,12 @@ import {
 	questionAnonymousResponse,
 	questionHistory,
 	workshopParticipant,
-	teamMember,
 	hoursEntry,
 	user
 } from '$lib/server/db/schema';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import { error, fail } from '@sveltejs/kit';
+import { getAccessibleWorkshopIds, canAccessWorkshop } from '$lib/server/access';
 import type { Actions, PageServerLoad } from './$types';
 
 const WORKSHOP_STATUSES = ['upcoming', 'in_progress', 'completed', 'cancelled'] as const;
@@ -23,6 +23,11 @@ type QuestionStatus = (typeof QUESTION_STATUSES)[number];
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const [ws] = await db.select().from(workshop).where(eq(workshop.code, params.code)).limit(1);
 	if (!ws) throw error(404, `Workshop ${params.code} not found`);
+
+	const accessible = await getAccessibleWorkshopIds(locals.user);
+	if (!canAccessWorkshop(accessible, ws.id)) {
+		throw error(404, `Workshop ${params.code} not found`);
+	}
 
 	const isAdmin = locals.user?.role === 'admin';
 	const userId = locals.user?.id ?? null;
@@ -164,13 +169,13 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
 	const participants = await db
 		.select({
-			id: teamMember.id,
-			name: teamMember.name,
-			role: teamMember.role,
-			organization: teamMember.organization
+			id: user.id,
+			name: user.name,
+			workshopRole: user.workshopRole,
+			organization: user.organization
 		})
 		.from(workshopParticipant)
-		.innerJoin(teamMember, eq(workshopParticipant.teamMemberId, teamMember.id))
+		.innerJoin(user, eq(workshopParticipant.userId, user.id))
 		.where(eq(workshopParticipant.workshopId, ws.id));
 
 	const hours = await db
@@ -178,17 +183,17 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			id: hoursEntry.id,
 			kind: hoursEntry.kind,
 			hours: hoursEntry.hours,
-			memberName: teamMember.name,
-			teamMemberId: hoursEntry.teamMemberId
+			memberName: user.name,
+			userId: hoursEntry.userId
 		})
 		.from(hoursEntry)
-		.leftJoin(teamMember, eq(hoursEntry.teamMemberId, teamMember.id))
+		.leftJoin(user, eq(hoursEntry.userId, user.id))
 		.where(eq(hoursEntry.workshopId, ws.id));
 
 	const allMembers = await db
-		.select({ id: teamMember.id, name: teamMember.name, role: teamMember.role })
-		.from(teamMember)
-		.orderBy(asc(teamMember.name));
+		.select({ id: user.id, name: user.name, workshopRole: user.workshopRole })
+		.from(user)
+		.orderBy(asc(user.name));
 
 	return {
 		workshop: ws,
@@ -371,16 +376,16 @@ export const actions: Actions = {
 	addHours: async ({ request, params, locals }) => {
 		if (!requireAdmin(locals)) return fail(403, { error: 'Admin only' });
 		const form = await request.formData();
-		const teamMemberId = Number(form.get('teamMemberId'));
+		const userId = form.get('userId')?.toString();
 		const hours = form.get('hours')?.toString().trim();
 		const kind = form.get('kind')?.toString().trim();
 
-		if (!teamMemberId || !hours || !kind) return fail(400, { error: 'Missing fields' });
+		if (!userId || !hours || !kind) return fail(400, { error: 'Missing fields' });
 
 		const [ws] = await db.select().from(workshop).where(eq(workshop.code, params.code)).limit(1);
 		if (!ws) return fail(404, { error: 'Workshop not found' });
 
-		await db.insert(hoursEntry).values({ workshopId: ws.id, teamMemberId, kind, hours });
+		await db.insert(hoursEntry).values({ workshopId: ws.id, userId, kind, hours });
 		return { ok: true };
 	},
 
@@ -396,15 +401,15 @@ export const actions: Actions = {
 	addParticipant: async ({ request, params, locals }) => {
 		if (!requireAdmin(locals)) return fail(403, { error: 'Admin only' });
 		const form = await request.formData();
-		const teamMemberId = Number(form.get('teamMemberId'));
-		if (!teamMemberId) return fail(400, { error: 'Missing member' });
+		const userId = form.get('userId')?.toString();
+		if (!userId) return fail(400, { error: 'Missing member' });
 
 		const [ws] = await db.select().from(workshop).where(eq(workshop.code, params.code)).limit(1);
 		if (!ws) return fail(404, { error: 'Workshop not found' });
 
 		await db
 			.insert(workshopParticipant)
-			.values({ workshopId: ws.id, teamMemberId })
+			.values({ workshopId: ws.id, userId })
 			.onConflictDoNothing();
 		return { ok: true };
 	},
@@ -510,8 +515,8 @@ export const actions: Actions = {
 	removeParticipant: async ({ request, params, locals }) => {
 		if (!requireAdmin(locals)) return fail(403, { error: 'Admin only' });
 		const form = await request.formData();
-		const teamMemberId = Number(form.get('teamMemberId'));
-		if (!teamMemberId) return fail(400, { error: 'Missing member' });
+		const userId = form.get('userId')?.toString();
+		if (!userId) return fail(400, { error: 'Missing member' });
 
 		const [ws] = await db.select().from(workshop).where(eq(workshop.code, params.code)).limit(1);
 		if (!ws) return fail(404, { error: 'Workshop not found' });
@@ -521,7 +526,7 @@ export const actions: Actions = {
 			.where(
 				and(
 					eq(workshopParticipant.workshopId, ws.id),
-					eq(workshopParticipant.teamMemberId, teamMemberId)
+					eq(workshopParticipant.userId, userId)
 				)
 			);
 		return { ok: true };

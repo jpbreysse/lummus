@@ -1,10 +1,12 @@
 import { db } from '$lib/server/db';
 import { workshop, question, workshopParticipant, hoursEntry } from '$lib/server/db/schema';
-import { asc, sql } from 'drizzle-orm';
+import { asc, inArray, sql } from 'drizzle-orm';
+import { getAccessibleWorkshopIds } from '$lib/server/access';
 
 export const load = async ({ locals }) => {
 	const isAdmin = locals.user?.role === 'admin';
 	const pubFilter = isAdmin ? sql`true` : sql`${question.published} = true`;
+	const accessible = await getAccessibleWorkshopIds(locals.user);
 
 	const rows = await db
 		.select({
@@ -22,6 +24,7 @@ export const load = async ({ locals }) => {
 			hours: sql<string>`coalesce((select sum(${hoursEntry.hours}) from ${hoursEntry} where ${hoursEntry.workshopId} = ${workshop.id}), 0)`
 		})
 		.from(workshop)
+		.where(accessible ? inArray(workshop.id, [...accessible]) : undefined)
 		.orderBy(asc(workshop.weekNumber));
 
 	return { workshops: rows };

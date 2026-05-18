@@ -83,6 +83,7 @@
 						<Table.Head>Name</Table.Head>
 						<Table.Head>Email</Table.Head>
 						<Table.Head class="w-40">Role</Table.Head>
+						<Table.Head class="w-40">Workshop access</Table.Head>
 						<Table.Head class="w-20">Sessions</Table.Head>
 						<Table.Head class="w-28">Created</Table.Head>
 						<Table.Head class="w-12"></Table.Head>
@@ -128,6 +129,19 @@
 									</form>
 								{:else}
 									<Badge variant={u.role === 'admin' ? 'default' : 'secondary'}>{u.role}</Badge>
+								{/if}
+							</Table.Cell>
+							<Table.Cell>
+								{#if u.role === 'admin'}
+									<Badge variant="outline" class="text-[10px]">All (admin)</Badge>
+								{:else if u.accessCodes.length === 0}
+									<Badge variant="outline" class="text-[10px]">All workshops</Badge>
+								{:else}
+									<div class="flex flex-wrap gap-1">
+										{#each u.accessCodes as code (code)}
+											<Badge variant="outline" class="font-mono text-[10px]">{code}</Badge>
+										{/each}
+									</div>
 								{/if}
 							</Table.Cell>
 							<Table.Cell class="font-mono text-xs">{u.sessions}</Table.Cell>

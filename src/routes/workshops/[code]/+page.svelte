@@ -612,7 +612,7 @@
 							<div class="min-w-0">
 								<div class="truncate text-sm">{p.name}</div>
 								<div class="text-muted-foreground truncate text-xs">
-									{p.role}{p.organization ? ` · ${p.organization}` : ''}
+									{p.workshopRole}{p.organization ? ` · ${p.organization}` : ''}
 								</div>
 							</div>
 							{#if isAdmin}
@@ -626,7 +626,7 @@
 										};
 									}}
 								>
-									<input type="hidden" name="teamMemberId" value={p.id} />
+									<input type="hidden" name="userId" value={p.id} />
 									<button
 										type="submit"
 										class="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100"
@@ -899,7 +899,7 @@
 				<Label for="h-member">Member</Label>
 				<select
 					id="h-member"
-					name="teamMemberId"
+					name="userId"
 					required
 					class="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
 				>
@@ -951,13 +951,13 @@
 				<Label for="p-member">Member</Label>
 				<select
 					id="p-member"
-					name="teamMemberId"
+					name="userId"
 					required
 					class="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
 				>
 					<option value="" disabled selected>Choose…</option>
 					{#each nonParticipants() as m (m.id)}
-						<option value={m.id}>{m.name}{m.role ? ` — ${m.role}` : ''}</option>
+						<option value={m.id}>{m.name}{m.workshopRole ? ` — ${m.workshopRole}` : ''}</option>
 					{/each}
 				</select>
 			</div>

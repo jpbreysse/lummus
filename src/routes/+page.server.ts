@@ -3,22 +3,26 @@ import {
 	workshop,
 	question,
 	hoursEntry,
-	teamMember,
 	workshopParticipant,
 	announcement,
 	user
 } from '$lib/server/db/schema';
-import { and, asc, desc, eq, gt, isNotNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNotNull, sql } from 'drizzle-orm';
+import { getAccessibleWorkshopIds } from '$lib/server/access';
 
 export const load = async ({ locals }) => {
 	const isAdmin = locals.user?.role === 'admin';
 	const pubFilter = isAdmin ? sql`true` : sql`${question.published} = true`;
+	const accessible = await getAccessibleWorkshopIds(locals.user);
+	const accessibleIds = accessible ? [...accessible] : null;
+	const wsWhere = accessibleIds ? inArray(workshop.id, accessibleIds) : undefined;
 	const statusCounts = await db
 		.select({
 			status: workshop.status,
 			count: sql<number>`count(*)::int`
 		})
 		.from(workshop)
+		.where(wsWhere)
 		.groupBy(workshop.status);
 
 	const byStatus = Object.fromEntries(statusCounts.map((r) => [r.status, r.count])) as Record<
@@ -26,13 +30,30 @@ export const load = async ({ locals }) => {
 		number
 	>;
 
-	const [{ totalHours, memberCount, workshopCount }] = await db
-		.select({
-			totalHours: sql<string>`coalesce(sum(${hoursEntry.hours}), 0)`,
-			memberCount: sql<number>`(select count(*)::int from ${teamMember})`,
-			workshopCount: sql<number>`(select count(*)::int from ${workshop})`
-		})
-		.from(hoursEntry);
+	const [{ memberCount }] = await db
+		.select({ memberCount: sql<number>`count(*)::int` })
+		.from(user);
+
+	const wsCountQ = accessibleIds
+		? await db
+				.select({ n: sql<number>`count(*)::int` })
+				.from(workshop)
+				.where(inArray(workshop.id, accessibleIds))
+		: await db.select({ n: sql<number>`count(*)::int` }).from(workshop);
+	const workshopCount = wsCountQ[0]?.n ?? 0;
+
+	const [{ totalHours }] = accessibleIds
+		? await db
+				.select({
+					totalHours: sql<string>`coalesce(sum(${hoursEntry.hours}), 0)`
+				})
+				.from(hoursEntry)
+				.where(inArray(hoursEntry.workshopId, accessibleIds))
+		: await db
+				.select({
+					totalHours: sql<string>`coalesce(sum(${hoursEntry.hours}), 0)`
+				})
+				.from(hoursEntry);
 
 	const [{ totalQuestions, answered }] = await db
 		.select({
@@ -40,7 +61,11 @@ export const load = async ({ locals }) => {
 			answered: sql<number>`sum(case when ${question.status} = 'answered' then 1 else 0 end)::int`
 		})
 		.from(question)
-		.where(pubFilter);
+		.where(
+			accessibleIds
+				? and(pubFilter, inArray(question.workshopId, accessibleIds))
+				: pubFilter
+		);
 
 	const workshopProgress = await db
 		.select({
@@ -56,6 +81,7 @@ export const load = async ({ locals }) => {
 			hours: sql<string>`coalesce((select sum(${hoursEntry.hours}) from ${hoursEntry} where ${hoursEntry.workshopId} = ${workshop.id}), 0)`
 		})
 		.from(workshop)
+		.where(wsWhere)
 		.orderBy(asc(workshop.weekNumber));
 
 	const [nextWorkshop] = await db
@@ -67,7 +93,15 @@ export const load = async ({ locals }) => {
 			sessionDurationMinutes: workshop.sessionDurationMinutes
 		})
 		.from(workshop)
-		.where(and(isNotNull(workshop.scheduledAt), gt(workshop.scheduledAt, sql`now()`)))
+		.where(
+			accessibleIds
+				? and(
+						isNotNull(workshop.scheduledAt),
+						gt(workshop.scheduledAt, sql`now()`),
+						inArray(workshop.id, accessibleIds)
+					)
+				: and(isNotNull(workshop.scheduledAt), gt(workshop.scheduledAt, sql`now()`))
+		)
 		.orderBy(asc(workshop.scheduledAt))
 		.limit(1);
 

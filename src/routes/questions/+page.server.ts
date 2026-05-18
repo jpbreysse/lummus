@@ -2,6 +2,7 @@ import { db } from '$lib/server/db';
 import { question, questionResponse, questionHistory, workshop } from '$lib/server/db/schema';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import { fail } from '@sveltejs/kit';
+import { getAccessibleWorkshopIds } from '$lib/server/access';
 import type { Actions, PageServerLoad } from './$types';
 
 const QUESTION_STATUSES = ['open', 'answered', 'deferred'] as const;
@@ -10,6 +11,12 @@ type QuestionStatus = (typeof QUESTION_STATUSES)[number];
 export const load: PageServerLoad = async ({ locals }) => {
 	const isAdmin = locals.user?.role === 'admin';
 	const userId = locals.user?.id ?? null;
+	const accessible = await getAccessibleWorkshopIds(locals.user);
+
+	const filters = [
+		isAdmin ? undefined : eq(question.published, true),
+		accessible ? inArray(question.workshopId, [...accessible]) : undefined
+	].filter(Boolean) as Parameters<typeof and>;
 
 	const rows = await db
 		.select({
@@ -24,7 +31,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		})
 		.from(question)
 		.innerJoin(workshop, eq(question.workshopId, workshop.id))
-		.where(isAdmin ? undefined : eq(question.published, true))
+		.where(filters.length ? and(...filters) : undefined)
 		.orderBy(asc(workshop.weekNumber), asc(question.id));
 
 	// Own responses per question (for standard users to see their own answer summary)

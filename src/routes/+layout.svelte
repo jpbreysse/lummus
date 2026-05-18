@@ -7,6 +7,7 @@
 	import Users from '@lucide/svelte/icons/users';
 	import MessageCircleQuestion from '@lucide/svelte/icons/message-circle-question';
 	import Clock from '@lucide/svelte/icons/clock';
+	import Timer from '@lucide/svelte/icons/timer';
 	import Megaphone from '@lucide/svelte/icons/megaphone';
 	import UserRound from '@lucide/svelte/icons/user-round';
 	import BarChart3 from '@lucide/svelte/icons/bar-chart-3';
@@ -33,6 +34,7 @@
 			...(isAdmin
 				? [
 						{ href: '/reports', label: 'Reports', icon: BarChart3 },
+						{ href: '/effort', label: 'Effort', icon: Timer },
 						{ href: '/users', label: 'Users', icon: UserRound }
 					]
 				: [])

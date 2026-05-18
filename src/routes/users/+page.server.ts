@@ -1,5 +1,5 @@
 import { db } from '$lib/server/db';
-import { user, session, invite, account } from '$lib/server/db/schema';
+import { user, session, invite, account, workshopParticipant, workshop } from '$lib/server/db/schema';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { error, fail } from '@sveltejs/kit';
 import { randomBytes } from 'node:crypto';
@@ -24,7 +24,13 @@ export const load: PageServerLoad = async ({ locals }) => {
 			image: user.image,
 			role: user.role,
 			createdAt: user.createdAt,
-			sessions: sql<number>`(select count(*)::int from ${session} where ${session.userId} = ${user.id} and ${session.expiresAt} > now())`
+			sessions: sql<number>`(select count(*)::int from ${session} where ${session.userId} = ${user.id} and ${session.expiresAt} > now())`,
+			accessCodes: sql<string[]>`coalesce((
+				select array_agg(distinct w.code order by w.code)
+				from workshop_participant wp
+				join workshop w on w.id = wp.workshop_id
+				where wp.user_id = "user"."id"
+			), '{}')`
 		})
 		.from(user)
 		.orderBy(desc(user.createdAt));

@@ -13,7 +13,11 @@ import { relations } from 'drizzle-orm';
 
 export const userRole = pgEnum('user_role', ['admin', 'user']);
 
-// ─── Auth (Better Auth) ──────────────────────────────────────────────
+// ─── User (Better Auth identity + programme participation) ───────────
+// A `user` row is the single source of truth for a person — login,
+// stakeholder profile, programme participant. Some users have a
+// password (in `account`) and can sign in. Others are "stakeholder-only"
+// rows we track but who don't log in.
 export const user = pgTable('user', {
 	id: text('id').primaryKey(),
 	name: text('name').notNull(),
@@ -21,6 +25,8 @@ export const user = pgTable('user', {
 	emailVerified: boolean('email_verified').notNull().default(false),
 	image: text('image'),
 	role: userRole('role').notNull().default('user'),
+	organization: text('organization'),
+	workshopRole: text('workshop_role'),
 	createdAt: timestamp('created_at').notNull().defaultNow(),
 	updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
@@ -114,26 +120,20 @@ export const workshop = pgTable('workshop', {
 	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
 });
 
-export const teamMember = pgTable('team_member', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	role: text('role'),
-	organization: text('organization'),
-	email: text('email'),
-	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
-});
-
 export const workshopParticipant = pgTable(
 	'workshop_participant',
 	{
 		workshopId: integer('workshop_id')
 			.notNull()
 			.references(() => workshop.id, { onDelete: 'cascade' }),
-		teamMemberId: integer('team_member_id')
+		userId: text('user_id')
 			.notNull()
-			.references(() => teamMember.id, { onDelete: 'cascade' })
+			.references(() => user.id, { onDelete: 'cascade' })
 	},
-	(t) => [index('workshop_participant_workshop_idx').on(t.workshopId)]
+	(t) => [
+		index('workshop_participant_workshop_idx').on(t.workshopId),
+		index('workshop_participant_user_idx').on(t.userId)
+	]
 );
 
 export const question = pgTable(
@@ -152,6 +152,24 @@ export const question = pgTable(
 	(t) => [index('question_workshop_idx').on(t.workshopId)]
 );
 
+// Internal effort tracking — admin-only. Independent from `hoursEntry`
+// (which ties hours to workshops). Use this for any work that isn't
+// scoped to a specific workshop: prep, deliverables, off-cycle calls,
+// etc.
+export const effortLog = pgTable(
+	'effort_log',
+	{
+		id: serial('id').primaryKey(),
+		userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+		date: timestamp('date', { withTimezone: true }).notNull().defaultNow(),
+		description: text('description').notNull(),
+		hours: numeric('hours', { precision: 6, scale: 2 }).notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+		updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(t) => [index('effort_log_user_idx').on(t.userId), index('effort_log_date_idx').on(t.date)]
+);
+
 export const hoursEntry = pgTable(
 	'hours_entry',
 	{
@@ -159,7 +177,7 @@ export const hoursEntry = pgTable(
 		workshopId: integer('workshop_id').references(() => workshop.id, {
 			onDelete: 'set null'
 		}),
-		teamMemberId: integer('team_member_id').references(() => teamMember.id, {
+		userId: text('user_id').references(() => user.id, {
 			onDelete: 'set null'
 		}),
 		kind: text('kind').notNull(),
@@ -169,7 +187,7 @@ export const hoursEntry = pgTable(
 	},
 	(t) => [
 		index('hours_workshop_idx').on(t.workshopId),
-		index('hours_member_idx').on(t.teamMemberId)
+		index('hours_user_idx').on(t.userId)
 	]
 );
 
@@ -179,19 +197,14 @@ export const workshopRelations = relations(workshop, ({ many }) => ({
 	hours: many(hoursEntry)
 }));
 
-export const teamMemberRelations = relations(teamMember, ({ many }) => ({
-	workshops: many(workshopParticipant),
-	hours: many(hoursEntry)
-}));
-
 export const workshopParticipantRelations = relations(workshopParticipant, ({ one }) => ({
 	workshop: one(workshop, {
 		fields: [workshopParticipant.workshopId],
 		references: [workshop.id]
 	}),
-	member: one(teamMember, {
-		fields: [workshopParticipant.teamMemberId],
-		references: [teamMember.id]
+	user: one(user, {
+		fields: [workshopParticipant.userId],
+		references: [user.id]
 	})
 }));
 
@@ -287,16 +300,16 @@ export const hoursEntryRelations = relations(hoursEntry, ({ one }) => ({
 		fields: [hoursEntry.workshopId],
 		references: [workshop.id]
 	}),
-	member: one(teamMember, {
-		fields: [hoursEntry.teamMemberId],
-		references: [teamMember.id]
+	user: one(user, {
+		fields: [hoursEntry.userId],
+		references: [user.id]
 	})
 }));
 
 export type Workshop = typeof workshop.$inferSelect;
 export type NewWorkshop = typeof workshop.$inferInsert;
-export type TeamMember = typeof teamMember.$inferSelect;
-export type NewTeamMember = typeof teamMember.$inferInsert;
+export type User = typeof user.$inferSelect;
+export type NewUser = typeof user.$inferInsert;
 export type Question = typeof question.$inferSelect;
 export type NewQuestion = typeof question.$inferInsert;
 export type HoursEntry = typeof hoursEntry.$inferSelect;
