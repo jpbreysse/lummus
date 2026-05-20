@@ -10,7 +10,7 @@ import {
 	hoursEntry,
 	user
 } from '$lib/server/db/schema';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, or } from 'drizzle-orm';
 import { error, fail } from '@sveltejs/kit';
 import { getAccessibleWorkshopIds, canAccessWorkshop } from '$lib/server/access';
 import type { Actions, PageServerLoad } from './$types';
@@ -31,15 +31,27 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
 	const isAdmin = locals.user?.role === 'admin';
 	const userId = locals.user?.id ?? null;
+	// The current user's workshop role ('PM', 'Engineer', or null/undefined).
+	// Used to filter role-specific questions for non-admin participants.
+	const userWorkshopRole = locals.user?.workshopRole ?? null;
+
+	// Build the WHERE clause for questions:
+	// - Admin: all questions in the workshop
+	// - Standard user: published questions where targetRole IS NULL or matches their workshopRole
+	const questionWhere = isAdmin
+		? eq(question.workshopId, ws.id)
+		: and(
+				eq(question.workshopId, ws.id),
+				eq(question.published, true),
+				userWorkshopRole
+					? or(isNull(question.targetRole), eq(question.targetRole, userWorkshopRole))
+					: isNull(question.targetRole)
+			);
 
 	const rawQuestions = await db
 		.select()
 		.from(question)
-		.where(
-			isAdmin
-				? eq(question.workshopId, ws.id)
-				: and(eq(question.workshopId, ws.id), eq(question.published, true))
-		)
+		.where(questionWhere)
 		.orderBy(asc(question.id));
 
 	// Non-admins never see the consolidated answer
@@ -240,17 +252,24 @@ export const actions: Actions = {
 		const prompt = form.get('prompt')?.toString().trim();
 		const answer = form.get('answer')?.toString().trim() || null;
 		const status = form.get('status')?.toString() as QuestionStatus;
+		const targetRoleRaw = form.get('targetRole')?.toString().trim() || null;
+		const VALID_TARGET_ROLES = ['PM', 'Engineer'] as const;
+		type TargetRole = (typeof VALID_TARGET_ROLES)[number];
+		const targetRole: TargetRole | null =
+			targetRoleRaw && (VALID_TARGET_ROLES as readonly string[]).includes(targetRoleRaw)
+				? (targetRoleRaw as TargetRole)
+				: null;
 
 		if (!id || !prompt) return fail(400, { error: 'Missing fields' });
 		if (!QUESTION_STATUSES.includes(status)) return fail(400, { error: 'Invalid status' });
 
 		const [before] = await db
-			.select({ prompt: question.prompt, answer: question.answer, status: question.status })
+			.select({ prompt: question.prompt, answer: question.answer, status: question.status, targetRole: question.targetRole })
 			.from(question)
 			.where(eq(question.id, id))
 			.limit(1);
 
-		await db.update(question).set({ prompt, answer, status }).where(eq(question.id, id));
+		await db.update(question).set({ prompt, answer, status, targetRole }).where(eq(question.id, id));
 
 		if (before) {
 			const rows: { questionId: number; actorUserId: string | null; action: string; oldValue: string | null; newValue: string | null }[] = [];
@@ -274,6 +293,9 @@ export const actions: Actions = {
 		if (!requireAdmin(locals)) return fail(403, { error: 'Admin only' });
 		const form = await request.formData();
 		const prompt = form.get('prompt')?.toString().trim();
+		const targetRoleRaw = form.get('targetRole')?.toString().trim() || null;
+		const targetRole =
+			targetRoleRaw === 'PM' || targetRoleRaw === 'Engineer' ? targetRoleRaw : null;
 		if (!prompt) return fail(400, { error: 'Prompt required' });
 
 		const [ws] = await db.select().from(workshop).where(eq(workshop.code, params.code)).limit(1);
@@ -281,7 +303,7 @@ export const actions: Actions = {
 
 		const [created] = await db
 			.insert(question)
-			.values({ workshopId: ws.id, prompt })
+			.values({ workshopId: ws.id, prompt, targetRole })
 			.returning({ id: question.id });
 
 		await db.insert(questionHistory).values({

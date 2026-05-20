@@ -35,11 +35,11 @@ const guard: Handle = async ({ event, resolve }) => {
 	event.locals.session = session?.session ?? null;
 	if (session?.user) {
 		const [row] = await db
-			.select({ role: userTable.role })
+			.select({ role: userTable.role, workshopRole: userTable.workshopRole })
 			.from(userTable)
 			.where(eq(userTable.id, session.user.id))
 			.limit(1);
-		event.locals.user = { ...session.user, role: row?.role ?? 'user' };
+		event.locals.user = { ...session.user, role: row?.role ?? 'user', workshopRole: row?.workshopRole ?? null };
 	} else {
 		event.locals.user = null;
 	}

@@ -7,7 +7,7 @@ declare global {
 	namespace App {
 		interface Locals {
 			session: NonNullable<AuthSession>['session'] | null;
-			user: (AuthUser & { role: 'admin' | 'user' }) | null;
+			user: (AuthUser & { role: 'admin' | 'user'; workshopRole?: string | null }) | null;
 		}
 	}
 }

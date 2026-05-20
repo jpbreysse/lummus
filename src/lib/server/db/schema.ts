@@ -147,6 +147,9 @@ export const question = pgTable(
 		answer: text('answer'),
 		status: questionStatus('status').notNull().default('open'),
 		published: boolean('published').notNull().default(true),
+		// NULL = shown to all participants.
+		// 'PM' / 'Engineer' = shown only to participants whose workshopRole matches.
+		targetRole: text('target_role'),
 		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
 	},
 	(t) => [index('question_workshop_idx').on(t.workshopId)]

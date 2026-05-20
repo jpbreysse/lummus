@@ -1,6 +1,6 @@
 import { db } from '$lib/server/db';
 import { question, questionResponse, questionHistory, workshop } from '$lib/server/db/schema';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, or } from 'drizzle-orm';
 import { fail } from '@sveltejs/kit';
 import { getAccessibleWorkshopIds } from '$lib/server/access';
 import type { Actions, PageServerLoad } from './$types';
@@ -11,10 +11,17 @@ type QuestionStatus = (typeof QUESTION_STATUSES)[number];
 export const load: PageServerLoad = async ({ locals }) => {
 	const isAdmin = locals.user?.role === 'admin';
 	const userId = locals.user?.id ?? null;
+	const userWorkshopRole = locals.user?.workshopRole ?? null;
 	const accessible = await getAccessibleWorkshopIds(locals.user);
 
 	const filters = [
 		isAdmin ? undefined : eq(question.published, true),
+		// Role filter: standard users only see questions for their role (or questions with no role set)
+		isAdmin
+			? undefined
+			: userWorkshopRole
+				? or(isNull(question.targetRole), eq(question.targetRole, userWorkshopRole))
+				: isNull(question.targetRole),
 		accessible ? inArray(question.workshopId, [...accessible]) : undefined
 	].filter(Boolean) as Parameters<typeof and>;
 

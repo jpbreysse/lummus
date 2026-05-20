@@ -235,6 +235,9 @@
 								</div>
 							</div>
 							<Badge variant={questionStatusVariant(q.status)} class="shrink-0">{q.status}</Badge>
+							{#if isAdmin && q.targetRole}
+								<Badge variant="outline" class="shrink-0 border-violet-300 text-[10px] text-violet-700">{q.targetRole}</Badge>
+							{/if}
 							{#if isAdmin}
 								<form
 									method="POST"
@@ -801,6 +804,18 @@
 				<Label for="new-prompt">Prompt</Label>
 				<Textarea id="new-prompt" name="prompt" rows={3} required />
 			</div>
+			<div class="space-y-2">
+				<Label for="new-target-role">Audience</Label>
+				<select
+					id="new-target-role"
+					name="targetRole"
+					class="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
+				>
+					<option value="">Everyone</option>
+					<option value="PM">PM only</option>
+					<option value="Engineer">Engineer only</option>
+				</select>
+			</div>
 			<Dialog.Footer>
 				<Button variant="outline" type="button" onclick={() => (addQuestionOpen = false)}>
 					Cancel
@@ -857,6 +872,19 @@
 							<option value="open">Open</option>
 							<option value="answered">Answered</option>
 							<option value="deferred">Deferred</option>
+						</select>
+					</div>
+					<div class="space-y-2">
+						<Label for="edit-target-role">Audience</Label>
+						<select
+							id="edit-target-role"
+							name="targetRole"
+							value={q.targetRole ?? ''}
+							class="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
+						>
+							<option value="">Everyone</option>
+							<option value="PM">PM only</option>
+							<option value="Engineer">Engineer only</option>
 						</select>
 					</div>
 					<Dialog.Footer class="justify-between">
