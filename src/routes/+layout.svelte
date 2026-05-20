@@ -27,9 +27,9 @@
 		[
 			{ href: '/', label: 'Dashboard', icon: LayoutDashboard },
 			{ href: '/workshops', label: 'Workshops', icon: Calendar },
-			{ href: '/team', label: 'Team', icon: Users },
+			...(isAdmin ? [{ href: '/team', label: 'Team', icon: Users }] : []),
 			{ href: '/questions', label: 'Questions', icon: MessageCircleQuestion },
-			{ href: '/hours', label: 'Hours', icon: Clock },
+			...(isAdmin ? [{ href: '/hours', label: 'Hours', icon: Clock }] : []),
 			{ href: '/announcements', label: 'Announcements', icon: Megaphone },
 			...(isAdmin
 				? [
