@@ -79,7 +79,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 				.orderBy(asc(questionComment.createdAt))
 		: [];
 
-	// Anonymous responses — admin only (cannot be traced back to a user)
+	// Anonymous responses (admin view) — ALL rows, but we never select
+	// userId, so the admin still cannot attribute an answer to an author.
 	const anonResponsesRaw = isAdmin && questionIds.length
 		? await db
 				.select({
@@ -90,6 +91,26 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 				})
 				.from(questionAnonymousResponse)
 				.where(inArray(questionAnonymousResponse.questionId, questionIds))
+				.orderBy(asc(questionAnonymousResponse.createdAt))
+		: [];
+
+	// The current user's own anonymous responses. Soft-anonymous: we know
+	// who wrote them (so they can revisit) but admins do not see this link.
+	const myAnonResponsesRaw = userId && questionIds.length
+		? await db
+				.select({
+					id: questionAnonymousResponse.id,
+					questionId: questionAnonymousResponse.questionId,
+					body: questionAnonymousResponse.body,
+					createdAt: questionAnonymousResponse.createdAt
+				})
+				.from(questionAnonymousResponse)
+				.where(
+					and(
+						inArray(questionAnonymousResponse.questionId, questionIds),
+						eq(questionAnonymousResponse.userId, userId)
+					)
+				)
 				.orderBy(asc(questionAnonymousResponse.createdAt))
 		: [];
 
@@ -164,11 +185,19 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		anonByQuestion.set(a.questionId, list);
 	}
 
+	const myAnonByQuestion = new Map<number, typeof myAnonResponsesRaw>();
+	for (const a of myAnonResponsesRaw) {
+		const list = myAnonByQuestion.get(a.questionId) ?? [];
+		list.push(a);
+		myAnonByQuestion.set(a.questionId, list);
+	}
+
 	const questionsWithComments = questions.map((q) => ({
 		...q,
 		comments: commentsByQuestion.get(q.id) ?? [],
 		responses: responsesByQuestion.get(q.id) ?? [],
 		anonymousResponses: anonByQuestion.get(q.id) ?? [],
+		myAnonymousResponses: myAnonByQuestion.get(q.id) ?? [],
 		history: historyByQuestion.get(q.id) ?? []
 	}));
 
@@ -445,15 +474,18 @@ export const actions: Actions = {
 	},
 
 	submitAnonymousResponse: async ({ request, locals }) => {
-		// User must be signed in to submit (rate-limit protection),
-		// but their identity is NEVER stored against the row.
+		// Soft-anonymous: we DO store the user_id so the user can see their
+		// own past anonymous answers across sessions, but the admin UI never
+		// surfaces this link — admins see body+timestamp only.
 		if (!locals.user) return fail(401, { error: 'Not signed in' });
 		const form = await request.formData();
 		const questionId = Number(form.get('questionId'));
 		const body = form.get('body')?.toString().trim();
 		if (!questionId || !body) return fail(400, { error: 'Missing fields' });
 
-		await db.insert(questionAnonymousResponse).values({ questionId, body });
+		await db
+			.insert(questionAnonymousResponse)
+			.values({ questionId, body, userId: locals.user.id });
 		return { ok: true, anonymous: true };
 	},
 
