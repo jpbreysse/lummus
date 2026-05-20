@@ -85,6 +85,9 @@ export const invite = pgTable('invite', {
 	id: serial('id').primaryKey(),
 	code: text('code').notNull().unique(),
 	email: text('email'),
+	// Pre-assignments applied at signup time. Both optional.
+	workshopRole: text('workshop_role'),
+	workshopCodes: text('workshop_codes').array(),
 	createdByUserId: text('created_by_user_id').references(() => user.id, {
 		onDelete: 'set null'
 	}),

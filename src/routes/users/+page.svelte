@@ -241,6 +241,8 @@
 					<Table.Row>
 						<Table.Head class="w-20">Status</Table.Head>
 						<Table.Head>Email</Table.Head>
+						<Table.Head class="w-24">Role</Table.Head>
+						<Table.Head class="w-40">Access</Table.Head>
 						<Table.Head>Code</Table.Head>
 						<Table.Head class="w-28">Expires</Table.Head>
 						<Table.Head class="w-28">Used by</Table.Head>
@@ -253,6 +255,24 @@
 						<Table.Row class="group">
 							<Table.Cell><Badge variant={s.variant}>{s.label}</Badge></Table.Cell>
 							<Table.Cell class="text-muted-foreground text-sm">{inv.email ?? 'any'}</Table.Cell>
+							<Table.Cell class="text-xs">
+								{#if inv.workshopRole}
+									<Badge variant="outline" class="text-[10px]">{inv.workshopRole}</Badge>
+								{:else}
+									<span class="text-muted-foreground">—</span>
+								{/if}
+							</Table.Cell>
+							<Table.Cell>
+								{#if inv.workshopCodes && inv.workshopCodes.length}
+									<div class="flex flex-wrap gap-1">
+										{#each inv.workshopCodes as c (c)}
+											<Badge variant="outline" class="font-mono text-[10px]">{c}</Badge>
+										{/each}
+									</div>
+								{:else}
+									<span class="text-muted-foreground text-xs">all</span>
+								{/if}
+							</Table.Cell>
 							<Table.Cell class="font-mono text-xs">{inv.code.slice(0, 12)}…</Table.Cell>
 							<Table.Cell class="text-muted-foreground text-xs">{fmt(inv.expiresAt)}</Table.Cell>
 							<Table.Cell class="text-muted-foreground text-xs">{inv.usedByName ?? '—'}</Table.Cell>
@@ -298,7 +318,7 @@
 						</Table.Row>
 					{:else}
 						<Table.Row>
-							<Table.Cell colspan={6} class="text-muted-foreground text-center text-sm py-6">
+							<Table.Cell colspan={8} class="text-muted-foreground text-center text-sm py-6">
 								No invites yet.
 							</Table.Cell>
 						</Table.Row>
@@ -413,6 +433,36 @@
 			<div class="space-y-2">
 				<Label for="inv-ttl">Expires in (days)</Label>
 				<Input id="inv-ttl" name="ttlDays" type="number" min="1" max="90" value="7" />
+			</div>
+			<div class="space-y-2">
+				<Label for="inv-role">Workshop role (optional)</Label>
+				<select
+					id="inv-role"
+					name="workshopRole"
+					class="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
+				>
+					<option value="">— none —</option>
+					<option value="PM">PM</option>
+					<option value="Engineer">Engineer</option>
+				</select>
+				<p class="text-muted-foreground text-xs">
+					Applied to the user on signup so role-specific questions appear correctly.
+				</p>
+			</div>
+			<div class="space-y-2">
+				<Label>Workshop access (optional)</Label>
+				<div class="flex flex-wrap gap-3 rounded-md border p-3">
+					{#each data.workshops as w (w.code)}
+						<label class="flex items-center gap-1.5 text-sm">
+							<input type="checkbox" name="workshopCodes" value={w.code} class="size-4" />
+							<span class="font-mono">{w.code}</span>
+							<span class="text-muted-foreground text-xs truncate max-w-[10rem]">{w.title}</span>
+						</label>
+					{/each}
+				</div>
+				<p class="text-muted-foreground text-xs">
+					Tick the workshops the user should see. If none are ticked, the user defaults to seeing all workshops.
+				</p>
 			</div>
 
 			{#if latestInvite}

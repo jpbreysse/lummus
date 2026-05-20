@@ -1,6 +1,6 @@
 import { db } from '$lib/server/db';
 import { user, session, invite, account, workshopParticipant, workshop } from '$lib/server/db/schema';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { error, fail } from '@sveltejs/kit';
 import { randomBytes } from 'node:crypto';
 import { hashPassword } from 'better-auth/crypto';
@@ -41,6 +41,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			id: invite.id,
 			code: invite.code,
 			email: invite.email,
+			workshopRole: invite.workshopRole,
+			workshopCodes: invite.workshopCodes,
 			createdAt: invite.createdAt,
 			expiresAt: invite.expiresAt,
 			usedAt: invite.usedAt,
@@ -50,7 +52,14 @@ export const load: PageServerLoad = async ({ locals }) => {
 		.leftJoin(user, eq(user.id, invite.usedByUserId))
 		.orderBy(desc(invite.createdAt));
 
-	return { users, invites, currentUserId: locals.user?.id ?? null };
+	// All workshops, exposed to the Create invite dialog so the admin
+	// can pre-assign access by ticking codes.
+	const workshops = await db
+		.select({ code: workshop.code, title: workshop.title, weekNumber: workshop.weekNumber })
+		.from(workshop)
+		.orderBy(asc(workshop.weekNumber));
+
+	return { users, invites, workshops, currentUserId: locals.user?.id ?? null };
 };
 
 const requireAdmin = (locals: App.Locals) => locals.user?.role === 'admin';
@@ -133,12 +142,23 @@ export const actions: Actions = {
 		const email = form.get('email')?.toString().trim().toLowerCase() || null;
 		const ttlDays = Number(form.get('ttlDays')) || 7;
 
+		const workshopRoleRaw = form.get('workshopRole')?.toString().trim() || null;
+		const workshopRole =
+			workshopRoleRaw === 'PM' || workshopRoleRaw === 'Engineer' ? workshopRoleRaw : null;
+
+		// workshopCodes arrive as multiple form values with the same name.
+		// Empty list = no pre-assigned access (signup falls back to default).
+		const codesRaw = form.getAll('workshopCodes').map((v) => v.toString().trim()).filter(Boolean);
+		const workshopCodes = codesRaw.length ? codesRaw : null;
+
 		const code = generateCode();
 		const expiresAt = new Date(Date.now() + ttlDays * 24 * 60 * 60 * 1000);
 
 		await db.insert(invite).values({
 			code,
 			email,
+			workshopRole,
+			workshopCodes,
 			createdByUserId: locals.user?.id ?? null,
 			expiresAt
 		});

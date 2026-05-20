@@ -1,7 +1,7 @@
 import { db } from '$lib/server/db';
-import { invite } from '$lib/server/db/schema';
+import { invite, user, workshop, workshopParticipant } from '$lib/server/db/schema';
 import { auth } from '$lib/server/auth';
-import { and, eq, gt, isNull, or, sql } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import { error, fail, redirect, isRedirect, type Cookies } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -87,6 +87,32 @@ export const actions: Actions = {
 				.update(invite)
 				.set({ usedAt: new Date(), usedByUserId: response.user.id })
 				.where(eq(invite.id, row.id));
+
+			// Apply the invite's pre-assignments to the new user.
+			// Errors here should not block signup — we log and continue.
+			try {
+				if (row.workshopRole === 'PM' || row.workshopRole === 'Engineer') {
+					await db
+						.update(user)
+						.set({ workshopRole: row.workshopRole })
+						.where(eq(user.id, response.user.id));
+				}
+
+				if (row.workshopCodes && row.workshopCodes.length) {
+					const workshops = await db
+						.select({ id: workshop.id })
+						.from(workshop)
+						.where(inArray(workshop.code, row.workshopCodes));
+					if (workshops.length) {
+						await db
+							.insert(workshopParticipant)
+							.values(workshops.map((w) => ({ workshopId: w.id, userId: response.user.id })))
+							.onConflictDoNothing();
+					}
+				}
+			} catch (assignErr) {
+				console.error('Failed to apply invite pre-assignments', assignErr);
+			}
 		} catch (e) {
 			if (isRedirect(e)) throw e;
 			const message = e instanceof Error ? e.message : 'Signup failed';
