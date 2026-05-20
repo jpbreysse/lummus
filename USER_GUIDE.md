@@ -29,14 +29,16 @@ The sidebar on the left shows everything you can access:
 |---|---|
 | **Dashboard** | Programme overview · next meeting · latest announcements |
 | **Workshops** | The workshops you're a participant of |
-| **Team** | Directory of everyone in the programme |
 | **Questions** | All questions from your accessible workshops, filterable by status |
-| **Hours** | Effort logged against workshops |
 | **Announcements** | News from the admin |
 
 You'll only see the workshops you've been added to as a participant. If a workshop looks missing, ask the admin to add you.
 
+> Inside a workshop page you only see the **Questions** panel — Participants and Hours are admin-only.
+
 ## 3. Answering a question
+
+Some workshops have role-specific questions (PM vs Engineer). You'll only see the questions that apply to you — questions tagged for the other role are filtered out. If you think a question is missing or showing up by mistake, ask the admin to check your workshop role on the **Users** page.
 
 1. Open a workshop from the sidebar or dashboard, e.g. `W1`.
 2. Each question is shown as a row. Click **Add your response** (or **Your response** if you've already saved one) to expand it.
@@ -87,4 +89,4 @@ The admin posts announcements (next meeting time, agenda changes, follow-ups). T
 
 ---
 
-*Last updated: May 2026.*
+*Last updated: 20 May 2026.*
