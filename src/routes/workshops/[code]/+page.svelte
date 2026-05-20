@@ -220,16 +220,18 @@
 										{#if ownResponse}Your response{:else}Add your response{/if}
 										{#if isAdmin && otherResponses.length}· +{otherResponses.length} other{otherResponses.length > 1 ? 's' : ''}{/if}
 									</button>
-									<button
-										type="button"
-										class="text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
-										onclick={() => toggleExpanded(q.id)}
-									>
-										<MessageSquare class="size-3.5" />
-										{q.comments.length}
-										{q.comments.length === 1 ? 'comment' : 'comments'}
-										{expanded ? '· hide' : ''}
-									</button>
+									{#if isAdmin}
+										<button
+											type="button"
+											class="text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+											onclick={() => toggleExpanded(q.id)}
+										>
+											<MessageSquare class="size-3.5" />
+											{q.comments.length}
+											{q.comments.length === 1 ? 'comment' : 'comments'}
+											{expanded ? '· hide' : ''}
+										</button>
+									{/if}
 								</div>
 							</div>
 							<Badge variant={questionStatusVariant(q.status)} class="shrink-0">{q.status}</Badge>
@@ -511,7 +513,8 @@
 									</details>
 								{/if}
 
-								<!-- Comments -->
+								<!-- Comments — admin-only -->
+								{#if isAdmin}
 								<div>
 									<div class="text-muted-foreground mb-1 text-[11px] font-medium uppercase tracking-wide">
 										Comments
@@ -576,6 +579,7 @@
 									</form>
 									</div>
 								</div>
+								{/if}
 							</div>
 						{/if}
 					</div>

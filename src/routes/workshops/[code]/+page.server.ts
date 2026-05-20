@@ -50,8 +50,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
 	const questionIds = questions.map((q) => q.id);
 
-	// Comments — admins see all, standard users see only their own
-	const commentsRaw = questionIds.length
+	// Comments — admin-only feature; standard users never see or post them
+	const commentsRaw = isAdmin && questionIds.length
 		? await db
 				.select({
 					id: questionComment.id,
@@ -63,14 +63,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 				})
 				.from(questionComment)
 				.leftJoin(user, eq(user.id, questionComment.authorUserId))
-				.where(
-					isAdmin
-						? inArray(questionComment.questionId, questionIds)
-						: and(
-								inArray(questionComment.questionId, questionIds),
-								userId ? eq(questionComment.authorUserId, userId) : eq(questionComment.id, -1)
-							)
-				)
+				.where(inArray(questionComment.questionId, questionIds))
 				.orderBy(asc(questionComment.createdAt))
 		: [];
 
@@ -415,6 +408,7 @@ export const actions: Actions = {
 	},
 
 	addComment: async ({ request, locals }) => {
+		if (!requireAdmin(locals)) return fail(403, { error: 'Admin only' });
 		const form = await request.formData();
 		const questionId = Number(form.get('questionId'));
 		const body = form.get('body')?.toString().trim();
@@ -494,20 +488,10 @@ export const actions: Actions = {
 	},
 
 	deleteComment: async ({ request, locals }) => {
+		if (!requireAdmin(locals)) return fail(403, { error: 'Admin only' });
 		const form = await request.formData();
 		const id = Number(form.get('id'));
 		if (!id) return fail(400, { error: 'Missing id' });
-
-		const [c] = await db
-			.select({ authorUserId: questionComment.authorUserId })
-			.from(questionComment)
-			.where(eq(questionComment.id, id))
-			.limit(1);
-		if (!c) return fail(404, { error: 'Not found' });
-		const isAdmin = locals.user?.role === 'admin';
-		if (c.authorUserId && c.authorUserId !== locals.user?.id && !isAdmin) {
-			return fail(403, { error: 'Only the author or an admin can delete' });
-		}
 		await db.delete(questionComment).where(eq(questionComment.id, id));
 		return { ok: true };
 	},
