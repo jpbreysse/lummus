@@ -150,7 +150,7 @@
 		<Progress value={pct} class="h-2" />
 	</div>
 
-	<div class="grid gap-6 md:grid-cols-[2fr_1fr]">
+	<div class="grid gap-6 {isAdmin ? 'md:grid-cols-[2fr_1fr]' : ''}">
 		<Card.Root>
 			<Card.Header>
 				<div class="flex items-center justify-between">
@@ -593,6 +593,7 @@
 			</Card.Content>
 		</Card.Root>
 
+		{#if isAdmin}
 		<div class="space-y-6">
 			<Card.Root>
 				<Card.Header>
@@ -701,6 +702,7 @@
 				</Card.Content>
 			</Card.Root>
 		</div>
+		{/if}
 	</div>
 </div>
 
