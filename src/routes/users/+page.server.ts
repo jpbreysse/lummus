@@ -23,6 +23,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			emailVerified: user.emailVerified,
 			image: user.image,
 			role: user.role,
+			workshopRole: user.workshopRole,
 			createdAt: user.createdAt,
 			sessions: sql<number>`(select count(*)::int from ${session} where ${session.userId} = ${user.id} and ${session.expiresAt} > now())`,
 			accessCodes: sql<string[]>`coalesce((
@@ -111,6 +112,18 @@ export const actions: Actions = {
 			return fail(400, { error: 'Cannot demote yourself' });
 		}
 		await db.update(user).set({ role }).where(eq(user.id, id));
+		return { ok: true };
+	},
+
+	setWorkshopRole: async ({ request, locals }) => {
+		if (!requireAdmin(locals)) return fail(403, { error: 'Admin only' });
+		const form = await request.formData();
+		const id = form.get('id')?.toString();
+		const raw = form.get('workshopRole')?.toString() ?? '';
+		// Empty string from the dropdown means "unset" → store NULL
+		const workshopRole = raw === 'PM' || raw === 'Engineer' ? raw : null;
+		if (!id) return fail(400, { error: 'Missing id' });
+		await db.update(user).set({ workshopRole }).where(eq(user.id, id));
 		return { ok: true };
 	},
 

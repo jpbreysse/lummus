@@ -83,6 +83,7 @@
 						<Table.Head>Name</Table.Head>
 						<Table.Head>Email</Table.Head>
 						<Table.Head class="w-40">Role</Table.Head>
+						<Table.Head class="w-36">Workshop role</Table.Head>
 						<Table.Head class="w-40">Workshop access</Table.Head>
 						<Table.Head class="w-20">Sessions</Table.Head>
 						<Table.Head class="w-28">Created</Table.Head>
@@ -130,6 +131,35 @@
 								{:else}
 									<Badge variant={u.role === 'admin' ? 'default' : 'secondary'}>{u.role}</Badge>
 								{/if}
+							</Table.Cell>
+							<Table.Cell>
+								<form
+									method="POST"
+									action="?/setWorkshopRole"
+									class="flex items-center gap-2"
+									use:enhance={() => {
+										return async ({ result }) => {
+											if (result.type === 'success') markSaved(u.id + ':wr');
+										};
+									}}
+								>
+									<input type="hidden" name="id" value={u.id} />
+									<select
+										name="workshopRole"
+										value={u.workshopRole ?? ''}
+										onchange={(e) => (e.currentTarget.form as HTMLFormElement).requestSubmit()}
+										class="border-input bg-background h-7 rounded-md border px-2 text-xs"
+									>
+										<option value="">—</option>
+										<option value="PM">PM</option>
+										<option value="Engineer">Engineer</option>
+									</select>
+									{#if roleSavedAt[u.id + ':wr']}
+										<span class="flex items-center gap-1 text-xs text-emerald-600">
+											<CircleCheck class="size-3" /> saved
+										</span>
+									{/if}
+								</form>
 							</Table.Cell>
 							<Table.Cell>
 								{#if u.role === 'admin'}
