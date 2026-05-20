@@ -7,7 +7,6 @@
 	import CalendarClock from '@lucide/svelte/icons/calendar-clock';
 	import Users from '@lucide/svelte/icons/users';
 	import MessageCircleQuestion from '@lucide/svelte/icons/message-circle-question';
-	import Clock from '@lucide/svelte/icons/clock';
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
 	import CircleDot from '@lucide/svelte/icons/circle-dot';
 	import Circle from '@lucide/svelte/icons/circle';
@@ -86,7 +85,7 @@
 		</a>
 	{/if}
 
-	<div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+	<div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 		<Card.Root>
 			<Card.Header class="pb-2">
 				<div class="flex items-center justify-between">
@@ -138,16 +137,6 @@
 			</Card.Content>
 		</Card.Root>
 
-		<Card.Root>
-			<Card.Header class="pb-2">
-				<div class="flex items-center justify-between">
-					<Card.Description>Hours logged</Card.Description>
-					<Clock class="text-muted-foreground size-4" />
-				</div>
-				<Card.Title class="text-3xl tabular-nums">{data.summary.totalHours}h</Card.Title>
-			</Card.Header>
-			<Card.Content class="text-muted-foreground text-xs">across all workshops</Card.Content>
-		</Card.Root>
 	</div>
 
 	<div class="grid gap-6 md:grid-cols-[2fr_1fr]">
@@ -177,10 +166,7 @@
 						<Progress value={pct} class="h-1.5" />
 						<div class="text-muted-foreground mt-2 flex justify-between text-xs">
 							<span>{w.answered}/{w.total} answered</span>
-							<span class="flex gap-3">
-								<span class="flex items-center gap-1"><Users class="size-3" />{w.participants}</span>
-								<span class="flex items-center gap-1"><Clock class="size-3" />{Number(w.hours)}h</span>
-							</span>
+							<span class="flex items-center gap-1"><Users class="size-3" />{w.participants}</span>
 						</div>
 					</a>
 				{/each}

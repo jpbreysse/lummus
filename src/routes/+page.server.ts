@@ -2,7 +2,6 @@ import { db } from '$lib/server/db';
 import {
 	workshop,
 	question,
-	hoursEntry,
 	workshopParticipant,
 	announcement,
 	user
@@ -42,19 +41,6 @@ export const load = async ({ locals }) => {
 		: await db.select({ n: sql<number>`count(*)::int` }).from(workshop);
 	const workshopCount = wsCountQ[0]?.n ?? 0;
 
-	const [{ totalHours }] = accessibleIds
-		? await db
-				.select({
-					totalHours: sql<string>`coalesce(sum(${hoursEntry.hours}), 0)`
-				})
-				.from(hoursEntry)
-				.where(inArray(hoursEntry.workshopId, accessibleIds))
-		: await db
-				.select({
-					totalHours: sql<string>`coalesce(sum(${hoursEntry.hours}), 0)`
-				})
-				.from(hoursEntry);
-
 	const [{ totalQuestions, answered }] = await db
 		.select({
 			totalQuestions: sql<number>`count(*)::int`,
@@ -77,8 +63,7 @@ export const load = async ({ locals }) => {
 			scheduledAt: workshop.scheduledAt,
 			total: sql<number>`(select count(*)::int from ${question} where ${question.workshopId} = ${workshop.id} and ${pubFilter})`,
 			answered: sql<number>`(select count(*)::int from ${question} where ${question.workshopId} = ${workshop.id} and ${question.status} = 'answered' and ${pubFilter})`,
-			participants: sql<number>`(select count(*)::int from ${workshopParticipant} where ${workshopParticipant.workshopId} = ${workshop.id})`,
-			hours: sql<string>`coalesce((select sum(${hoursEntry.hours}) from ${hoursEntry} where ${hoursEntry.workshopId} = ${workshop.id}), 0)`
+			participants: sql<number>`(select count(*)::int from ${workshopParticipant} where ${workshopParticipant.workshopId} = ${workshop.id})`
 		})
 		.from(workshop)
 		.where(wsWhere)
@@ -123,7 +108,6 @@ export const load = async ({ locals }) => {
 		summary: {
 			workshopCount,
 			memberCount,
-			totalHours: Number(totalHours),
 			totalQuestions,
 			answered,
 			byStatus
