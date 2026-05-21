@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+	macOS launchd schedule: download the latest Scalingo backup every
+	morning at 09:30 local time (after Scalingo's own 02:00 CEST run).
+
+	Install:
+	  cp scripts/com.lummus.backup-daily.plist ~/Library/LaunchAgents/
+	  launchctl load -w ~/Library/LaunchAgents/com.lummus.backup-daily.plist
+
+	Verify:
+	  launchctl list | grep com.lummus
+	  cat /tmp/lummus-backup.log
+
+	Run on demand (for testing):
+	  launchctl kickstart -k gui/$(id -u)/com.lummus.backup-daily
+
+	Uninstall:
+	  launchctl unload ~/Library/LaunchAgents/com.lummus.backup-daily.plist
+	  rm ~/Library/LaunchAgents/com.lummus.backup-daily.plist
+
+	If your Mac is asleep at 09:30, launchd will fire the job as soon as
+	the system wakes (StartCalendarInterval missed-run semantics).
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.lummus.backup-daily</string>
+
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/jean-philippebreysse/dev/lummus/scripts/backup-from-scalingo.sh</string>
+	</array>
+
+	<key>WorkingDirectory</key>
+	<string>/Users/jean-philippebreysse/dev/lummus</string>
+
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+	</dict>
+
+	<key>StartCalendarInterval</key>
+	<dict>
+		<key>Hour</key>
+		<integer>9</integer>
+		<key>Minute</key>
+		<integer>30</integer>
+	</dict>
+
+	<key>StandardOutPath</key>
+	<string>/tmp/lummus-backup.log</string>
+	<key>StandardErrorPath</key>
+	<string>/tmp/lummus-backup.log</string>
+
+	<key>RunAtLoad</key>
+	<false/>
+</dict>
+</plist>
