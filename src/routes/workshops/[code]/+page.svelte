@@ -10,6 +10,7 @@
 	import { Progress } from '$lib/components/ui/progress';
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
+	import { WORKSHOP_ROLES } from '$lib/workshop-roles';
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
@@ -793,8 +794,9 @@
 					class="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
 				>
 					<option value="">Everyone</option>
-					<option value="PM">PM only</option>
-					<option value="Engineer">Engineer only</option>
+					{#each WORKSHOP_ROLES as r (r)}
+						<option value={r}>{r} only</option>
+					{/each}
 				</select>
 			</div>
 			<Dialog.Footer>
@@ -864,8 +866,9 @@
 							class="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
 						>
 							<option value="">Everyone</option>
-							<option value="PM">PM only</option>
-							<option value="Engineer">Engineer only</option>
+							{#each WORKSHOP_ROLES as r (r)}
+								<option value={r}>{r} only</option>
+							{/each}
 						</select>
 					</div>
 					<Dialog.Footer class="justify-between">

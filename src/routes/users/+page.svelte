@@ -8,6 +8,7 @@
 	import { Label } from '$lib/components/ui/label';
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
+	import { WORKSHOP_ROLES } from '$lib/workshop-roles';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import Copy from '@lucide/svelte/icons/copy';
 	import Plus from '@lucide/svelte/icons/plus';
@@ -151,8 +152,9 @@
 										class="border-input bg-background h-7 rounded-md border px-2 text-xs"
 									>
 										<option value="">—</option>
-										<option value="PM">PM</option>
-										<option value="Engineer">Engineer</option>
+										{#each WORKSHOP_ROLES as r (r)}
+											<option value={r}>{r}</option>
+										{/each}
 									</select>
 									{#if roleSavedAt[u.id + ':wr']}
 										<span class="flex items-center gap-1 text-xs text-emerald-600">
@@ -442,8 +444,9 @@
 					class="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
 				>
 					<option value="">— none —</option>
-					<option value="PM">PM</option>
-					<option value="Engineer">Engineer</option>
+					{#each WORKSHOP_ROLES as r (r)}
+						<option value={r}>{r}</option>
+					{/each}
 				</select>
 				<p class="text-muted-foreground text-xs">
 					Applied to the user on signup so role-specific questions appear correctly.

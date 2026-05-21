@@ -13,6 +13,7 @@ import {
 import { and, asc, eq, inArray, isNull, or } from 'drizzle-orm';
 import { error, fail } from '@sveltejs/kit';
 import { getAccessibleWorkshopIds, canAccessWorkshop } from '$lib/server/access';
+import { parseWorkshopRole } from '$lib/workshop-roles';
 import type { Actions, PageServerLoad } from './$types';
 
 const WORKSHOP_STATUSES = ['upcoming', 'in_progress', 'completed', 'cancelled'] as const;
@@ -281,13 +282,7 @@ export const actions: Actions = {
 		const prompt = form.get('prompt')?.toString().trim();
 		const answer = form.get('answer')?.toString().trim() || null;
 		const status = form.get('status')?.toString() as QuestionStatus;
-		const targetRoleRaw = form.get('targetRole')?.toString().trim() || null;
-		const VALID_TARGET_ROLES = ['PM', 'Engineer'] as const;
-		type TargetRole = (typeof VALID_TARGET_ROLES)[number];
-		const targetRole: TargetRole | null =
-			targetRoleRaw && (VALID_TARGET_ROLES as readonly string[]).includes(targetRoleRaw)
-				? (targetRoleRaw as TargetRole)
-				: null;
+		const targetRole = parseWorkshopRole(form.get('targetRole'));
 
 		if (!id || !prompt) return fail(400, { error: 'Missing fields' });
 		if (!QUESTION_STATUSES.includes(status)) return fail(400, { error: 'Invalid status' });
@@ -322,9 +317,7 @@ export const actions: Actions = {
 		if (!requireAdmin(locals)) return fail(403, { error: 'Admin only' });
 		const form = await request.formData();
 		const prompt = form.get('prompt')?.toString().trim();
-		const targetRoleRaw = form.get('targetRole')?.toString().trim() || null;
-		const targetRole =
-			targetRoleRaw === 'PM' || targetRoleRaw === 'Engineer' ? targetRoleRaw : null;
+		const targetRole = parseWorkshopRole(form.get('targetRole'));
 		if (!prompt) return fail(400, { error: 'Prompt required' });
 
 		const [ws] = await db.select().from(workshop).where(eq(workshop.code, params.code)).limit(1);

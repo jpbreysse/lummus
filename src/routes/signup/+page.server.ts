@@ -3,6 +3,7 @@ import { invite, user, workshop, workshopParticipant } from '$lib/server/db/sche
 import { auth } from '$lib/server/auth';
 import { and, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import { error, fail, redirect, isRedirect, type Cookies } from '@sveltejs/kit';
+import { parseWorkshopRole } from '$lib/workshop-roles';
 import type { Actions, PageServerLoad } from './$types';
 
 type CookieOptions = Parameters<Cookies['set']>[2];
@@ -91,10 +92,11 @@ export const actions: Actions = {
 			// Apply the invite's pre-assignments to the new user.
 			// Errors here should not block signup — we log and continue.
 			try {
-				if (row.workshopRole === 'PM' || row.workshopRole === 'Engineer') {
+				const preWorkshopRole = parseWorkshopRole(row.workshopRole);
+				if (preWorkshopRole) {
 					await db
 						.update(user)
-						.set({ workshopRole: row.workshopRole })
+						.set({ workshopRole: preWorkshopRole })
 						.where(eq(user.id, response.user.id));
 				}
 

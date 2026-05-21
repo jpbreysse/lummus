@@ -4,6 +4,7 @@ import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { error, fail } from '@sveltejs/kit';
 import { randomBytes } from 'node:crypto';
 import { hashPassword } from 'better-auth/crypto';
+import { parseWorkshopRole } from '$lib/workshop-roles';
 import type { Actions, PageServerLoad } from './$types';
 
 function generateCode() {
@@ -128,9 +129,8 @@ export const actions: Actions = {
 		if (!requireAdmin(locals)) return fail(403, { error: 'Admin only' });
 		const form = await request.formData();
 		const id = form.get('id')?.toString();
-		const raw = form.get('workshopRole')?.toString() ?? '';
 		// Empty string from the dropdown means "unset" → store NULL
-		const workshopRole = raw === 'PM' || raw === 'Engineer' ? raw : null;
+		const workshopRole = parseWorkshopRole(form.get('workshopRole'));
 		if (!id) return fail(400, { error: 'Missing id' });
 		await db.update(user).set({ workshopRole }).where(eq(user.id, id));
 		return { ok: true };
@@ -142,9 +142,7 @@ export const actions: Actions = {
 		const email = form.get('email')?.toString().trim().toLowerCase() || null;
 		const ttlDays = Number(form.get('ttlDays')) || 7;
 
-		const workshopRoleRaw = form.get('workshopRole')?.toString().trim() || null;
-		const workshopRole =
-			workshopRoleRaw === 'PM' || workshopRoleRaw === 'Engineer' ? workshopRoleRaw : null;
+		const workshopRole = parseWorkshopRole(form.get('workshopRole'));
 
 		// workshopCodes arrive as multiple form values with the same name.
 		// Empty list = no pre-assigned access (signup falls back to default).
