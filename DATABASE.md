@@ -149,6 +149,89 @@ DATABASE_URL="postgres://USER:PASS@127.0.0.1:10000/DBNAME?sslmode=prefer" \
 
 Kill the tunnel when done (Ctrl+C in its terminal).
 
+## Backups
+
+Two complementary backup paths. Use the one that matches your need.
+
+### A. Daily local copy of Scalingo's nightly backup (recommended)
+
+Scalingo automatically snapshots the Postgres addon every night around 02:00 CEST. `scripts/backup-from-scalingo.sh` downloads the latest one via the Scalingo CLI — **no tunnel, no pg_dump needed**.
+
+```sh
+./scripts/backup-from-scalingo.sh             # download the most recent existing backup
+./scripts/backup-from-scalingo.sh --trigger   # ask Scalingo to create a fresh backup, then download
+./scripts/backup-from-scalingo.sh --help
+```
+
+Output: `backups/scalingo-YYYYMMDD-HHMMSS-<id>.tar.gz` (gitignored).
+
+The archive contains a Postgres custom-format dump produced by Scalingo. Inspect / extract:
+
+```sh
+tar -tzf  backups/scalingo-...tar.gz
+tar -xzf  backups/scalingo-...tar.gz -C backups/
+```
+
+#### Daily schedule (macOS launchd)
+
+A launchd plist runs the script every day at **09:30 local**. Install it once:
+
+```sh
+cp scripts/com.lummus.backup-daily.plist ~/Library/LaunchAgents/
+launchctl load -w ~/Library/LaunchAgents/com.lummus.backup-daily.plist
+```
+
+Verify, log, run on demand, uninstall:
+
+```sh
+launchctl list | grep com.lummus                                 # see it's loaded
+cat /tmp/lummus-backup.log                                       # job output (stdout + stderr)
+launchctl kickstart -k gui/$(id -u)/com.lummus.backup-daily      # fire it now
+launchctl unload ~/Library/LaunchAgents/com.lummus.backup-daily.plist
+```
+
+If the Mac is asleep at 09:30 the job fires as soon as it wakes (launchd's missed-run semantics).
+
+### B. Ad-hoc full dump through an open tunnel
+
+When you need a backup right now from your local pg_dump (useful immediately before a risky migration), open a tunnel and run:
+
+```sh
+scalingo --app crmenergy db-tunnel SCALINGO_POSTGRESQL_URL   # leave open
+./scripts/backup-prod.sh                                     # full dump, custom format
+./scripts/backup-prod.sh --schema                            # structure only
+./scripts/backup-prod.sh --data                              # rows only
+./scripts/backup-prod.sh --plain                             # gzipped plain SQL
+```
+
+Output: `backups/lummus-<mode>-YYYYMMDD-HHMMSS.dump` (custom format, gitignored).
+
+The script pulls `SCALINGO_POSTGRESQL_URL` from `scalingo env`, rewrites the host to `127.0.0.1:10000`, and runs `pg_dump --no-owner --no-privileges` so the dump restores cleanly into any database.
+
+### Restoring a backup
+
+```sh
+# Custom-format dump (from either A or B with default options)
+createdb lummus_restore
+pg_restore -d lummus_restore --no-owner --no-privileges backups/<file>.dump
+
+# Plain SQL (from B --plain)
+gunzip -c backups/<file>.sql.gz | psql -d lummus_restore
+```
+
+### Configuration
+
+Both scripts default to the `crmenergy` app and the Postgres addon ID baked into `scripts/backup-from-scalingo.sh`. Override via env vars when needed:
+
+```sh
+SCALINGO_APP=other-app SCALINGO_PG_ADDON=ad-... ./scripts/backup-from-scalingo.sh
+TUNNEL_PORT=11000 ./scripts/backup-prod.sh
+```
+
+### Retention
+
+No automatic cleanup yet — `backups/` accumulates indefinitely. The dumps are tiny (~20 K each at current data volume) so this is fine for months; revisit if it grows.
+
 ## Table inventory (current app)
 
 ```
@@ -162,8 +245,12 @@ News
   announcement
 
 Domain
-  workshop, team_member, workshop_participant,
-  question, question_response, question_comment, hours_entry
+  workshop, workshop_participant,
+  question, question_response, question_anonymous_response,
+  question_comment, question_history,
+  hours_entry, effort_log
 ```
 
 Enums: `user_role` (admin/user), `workshop_status` (upcoming/in_progress/completed/cancelled), `question_status` (open/answered/deferred).
+
+Workshop roles (free-text columns, validated against `src/lib/workshop-roles.ts`): `PM`, `Engineer`, `IT`. Stored on `user.workshop_role`, `invite.workshop_role`, and `question.target_role`.
