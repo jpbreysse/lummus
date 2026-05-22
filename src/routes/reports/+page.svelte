@@ -23,12 +23,20 @@
 </script>
 
 <div class="max-w-7xl px-8 py-8">
-	<header class="mb-6">
-		<h1 class="text-2xl font-semibold tracking-tight">Reports — Participation matrix</h1>
-		<p class="text-muted-foreground text-sm">
-			Per-user counts of named responses and comments across each workshop.
-			Anonymous responses are aggregated separately (no attribution).
-		</p>
+	<header class="mb-6 flex items-start justify-between gap-4">
+		<div>
+			<h1 class="text-2xl font-semibold tracking-tight">Reports — Participation matrix</h1>
+			<p class="text-muted-foreground text-sm">
+				Per-user counts of named responses and comments across each workshop.
+				Anonymous responses are aggregated separately (no attribution).
+			</p>
+		</div>
+		<a
+			href="/reports/pipeline"
+			class="hover:bg-accent text-muted-foreground hover:text-foreground inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-xs transition-colors"
+		>
+			Pipeline report →
+		</a>
 	</header>
 
 	<div class="overflow-x-auto rounded-lg border">
