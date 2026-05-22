@@ -121,24 +121,25 @@
 					<Upload class="size-4" />
 					{importing ? 'Importing…' : 'Import'}
 				</Button>
-				<form
-					method="POST"
-					action="?/clearAll"
-					use:enhance={() => {
-						return async ({ update }) => {
-							await update();
-							await invalidateAll();
-						};
-					}}
-					onsubmit={(e) => {
-						if (!confirm('Clear ALL roster entries? Registrations are NOT touched.'))
-							e.preventDefault();
-					}}
-				>
-					<Button type="submit" variant="outline" size="sm" class="gap-1 text-destructive">
-						<Trash2 class="size-3.5" /> Clear roster
-					</Button>
-				</form>
+			</form>
+			<form
+				method="POST"
+				action="?/clearAll"
+				class="mt-3 inline-block"
+				use:enhance={() => {
+					return async ({ update }) => {
+						await update();
+						await invalidateAll();
+					};
+				}}
+				onsubmit={(e) => {
+					if (!confirm('Clear ALL roster entries? Registrations are NOT touched.'))
+						e.preventDefault();
+				}}
+			>
+				<Button type="submit" variant="outline" size="sm" class="gap-1 text-destructive">
+					<Trash2 class="size-3.5" /> Clear roster
+				</Button>
 			</form>
 
 			{#if importMessage}
