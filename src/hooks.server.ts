@@ -29,7 +29,10 @@ const authHandler: Handle = async ({ event, resolve }) => {
 const guard: Handle = async ({ event, resolve }) => {
 	const isPublic =
 		PUBLIC_PATHS.some((p) => event.url.pathname.startsWith(p)) ||
-		event.url.pathname.startsWith('/api/auth');
+		event.url.pathname.startsWith('/api/auth') ||
+		// Public-API routes use bearer-token auth (LUMMUS_API_TOKEN),
+		// not session cookies — they enforce their own checks.
+		event.url.pathname.startsWith('/api/');
 
 	const session = await auth.api.getSession({ headers: event.request.headers });
 	event.locals.session = session?.session ?? null;
