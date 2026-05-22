@@ -176,6 +176,25 @@ export const effortLog = pgTable(
 	(t) => [index('effort_log_user_idx').on(t.userId), index('effort_log_date_idx').on(t.date)]
 );
 
+// Persistent roster imported from an upstream Excel. Compared with
+// `user` on email to show who's still pending vs registered. Re-imports
+// are idempotent (UPSERT on email).
+export const rosterEntry = pgTable(
+	'roster_entry',
+	{
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		email: text('email').notNull().unique(),
+		workshopRole: text('workshop_role'),
+		workshopCodes: text('workshop_codes').array(),
+		importedAt: timestamp('imported_at', { withTimezone: true }).notNull().defaultNow(),
+		importedByUserId: text('imported_by_user_id').references(() => user.id, {
+			onDelete: 'set null'
+		})
+	},
+	(t) => [index('roster_entry_email_idx').on(t.email)]
+);
+
 export const hoursEntry = pgTable(
 	'hours_entry',
 	{

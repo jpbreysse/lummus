@@ -11,6 +11,7 @@
 	import Megaphone from '@lucide/svelte/icons/megaphone';
 	import UserRound from '@lucide/svelte/icons/user-round';
 	import BarChart3 from '@lucide/svelte/icons/bar-chart-3';
+	import ClipboardList from '@lucide/svelte/icons/clipboard-list';
 	import LogOut from '@lucide/svelte/icons/log-out';
 	import { authClient } from '$lib/auth-client';
 	import { goto } from '$app/navigation';
@@ -35,6 +36,7 @@
 				? [
 						{ href: '/reports', label: 'Reports', icon: BarChart3 },
 						{ href: '/effort', label: 'Effort', icon: Timer },
+						{ href: '/roster', label: 'Roster', icon: ClipboardList },
 						{ href: '/users', label: 'Users', icon: UserRound }
 					]
 				: [])
