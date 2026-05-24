@@ -33,7 +33,24 @@
 	let { data } = $props();
 	const currentUserId = $derived(page.data.user?.id ?? null);
 	const isAdmin = $derived(data.isAdmin);
-	let expandedQuestions = $state<Set<number>>(new Set());
+
+	// Auto-expand any question the user has already responded to. Without
+	// this, on page reload all rows are collapsed and the user can't see
+	// their saved answers without clicking — which has led to "the system
+	// deleted my responses" reports. Admins keep the default (collapsed)
+	// because expanding every answered row would be too noisy at scale.
+	const initialExpanded = (() => {
+		const s = new Set<number>();
+		if (!data.isAdmin) {
+			for (const q of data.questions) {
+				if (q.responses.length > 0 || q.myAnonymousResponses.length > 0) {
+					s.add(q.id);
+				}
+			}
+		}
+		return s;
+	})();
+	let expandedQuestions = $state<Set<number>>(initialExpanded);
 	let answerMode = $state<Record<number, 'named' | 'anonymous'>>({});
 
 	const toggleExpanded = (id: number) => {
@@ -242,6 +259,21 @@
 									<p class="text-muted-foreground mt-1 border-l-2 border-emerald-500 pl-2 text-xs whitespace-pre-wrap">
 										<span class="text-emerald-700 font-medium">Official answer — </span>{q.answer}
 									</p>
+								{/if}
+								<!-- Collapsed-state preview of the user's own response, so the
+									 answer is visible without expanding the row. Hidden when the
+									 row is expanded (the full edit form is shown below). -->
+								{#if !isAdmin && !expanded}
+									{#if ownResponse}
+										<p class="text-muted-foreground mt-1 line-clamp-2 border-l-2 border-emerald-300 pl-2 text-xs whitespace-pre-wrap">
+											<span class="font-medium text-emerald-700">You answered: </span>{ownResponse.body}
+										</p>
+									{:else if q.myAnonymousResponses.length}
+										{@const lastAnon = q.myAnonymousResponses[q.myAnonymousResponses.length - 1]}
+										<p class="text-muted-foreground mt-1 line-clamp-2 border-l-2 border-emerald-300 pl-2 text-xs whitespace-pre-wrap">
+											<span class="font-medium text-emerald-700">You answered (anonymous): </span>{lastAnon.body}
+										</p>
+									{/if}
 								{/if}
 								<div class="mt-2 flex gap-3 text-xs">
 									<button
