@@ -52,7 +52,16 @@
 		});
 
 	const totalHours = $derived(data.hours.reduce((s, h) => s + Number(h.hours), 0));
-	const answered = $derived(data.questions.filter((q) => q.status === 'answered').length);
+	// "Answered" semantics depend on the viewer:
+	//   - Admin → admin-curated status (question.status === 'answered')
+	//   - Non-admin → questions they personally responded to (named OR own anonymous)
+	const respondedByMe = (q: (typeof data.questions)[number]) =>
+		q.responses.length > 0 || q.myAnonymousResponses.length > 0;
+	const answered = $derived(
+		isAdmin
+			? data.questions.filter((q) => q.status === 'answered').length
+			: data.questions.filter(respondedByMe).length
+	);
 	const pct = $derived(
 		data.questions.length ? Math.round((answered / data.questions.length) * 100) : 0
 	);
@@ -67,20 +76,47 @@
 				: 'text-muted-foreground';
 
 	type QStatus = 'open' | 'answered' | 'deferred';
-	let statusFilter = $state<'all' | QStatus>('all');
+	// Filter axis is different per viewer (same reason as `answered` above):
+	//   - Admin → admin status (open / answered / deferred)
+	//   - Non-admin → personal completion (answered = "I responded" / pending)
+	type UserFilter = 'all' | 'answered' | 'pending';
+	let statusFilter = $state<'all' | QStatus | UserFilter>('all');
 
-	const filteredQuestions = $derived(
-		statusFilter === 'all'
-			? data.questions
-			: data.questions.filter((q) => q.status === statusFilter)
+	const filteredQuestions = $derived.by(() => {
+		if (statusFilter === 'all') return data.questions;
+		if (isAdmin) {
+			return data.questions.filter((q) => q.status === statusFilter);
+		}
+		if (statusFilter === 'answered') return data.questions.filter(respondedByMe);
+		if (statusFilter === 'pending') return data.questions.filter((q) => !respondedByMe(q));
+		return data.questions;
+	});
+
+	const statusCounts = $derived(
+		isAdmin
+			? {
+					all: data.questions.length,
+					open: data.questions.filter((q) => q.status === 'open').length,
+					answered: data.questions.filter((q) => q.status === 'answered').length,
+					deferred: data.questions.filter((q) => q.status === 'deferred').length
+				}
+			: {
+					all: data.questions.length,
+					answered: data.questions.filter(respondedByMe).length,
+					pending: data.questions.filter((q) => !respondedByMe(q)).length
+				}
 	);
 
-	const statusCounts = $derived({
-		all: data.questions.length,
-		open: data.questions.filter((q) => q.status === 'open').length,
-		answered: data.questions.filter((q) => q.status === 'answered').length,
-		deferred: data.questions.filter((q) => q.status === 'deferred').length
-	});
+	const filterTabs = $derived(
+		isAdmin
+			? ([
+					['all', 'All'],
+					['open', 'Open'],
+					['answered', 'Answered'],
+					['deferred', 'Deferred']
+				] as const)
+			: ([['all', 'All'], ['answered', 'Answered'], ['pending', 'Not yet']] as const)
+	);
 
 	const draftCount = $derived(data.questions.filter((q) => !q.published).length);
 
@@ -176,7 +212,7 @@
 					{/if}
 				</div>
 				<div class="mt-2 flex gap-1 text-sm">
-					{#each [['all', 'All'], ['open', 'Open'], ['answered', 'Answered'], ['deferred', 'Deferred']] as const as [k, label] (k)}
+					{#each filterTabs as [k, label] (k)}
 						<button
 							type="button"
 							class="hover:bg-accent rounded-md border px-2.5 py-0.5 text-xs transition-colors {statusFilter ===
@@ -185,7 +221,8 @@
 								: 'text-muted-foreground'}"
 							onclick={() => (statusFilter = k)}
 						>
-							{label} <span class="ml-1 opacity-60">{statusCounts[k]}</span>
+							{label}
+							<span class="ml-1 opacity-60">{(statusCounts as Record<string, number>)[k] ?? 0}</span>
 						</button>
 					{/each}
 				</div>
@@ -230,9 +267,17 @@
 									{/if}
 								</div>
 							</div>
-							<Badge variant={questionStatusVariant(q.status)} class="shrink-0">{q.status}</Badge>
-							{#if isAdmin && q.targetRole}
-								<Badge variant="outline" class="shrink-0 border-violet-300 text-[10px] text-violet-700">{q.targetRole}</Badge>
+							{#if isAdmin}
+								<Badge variant={questionStatusVariant(q.status)} class="shrink-0">{q.status}</Badge>
+								{#if q.targetRole}
+									<Badge variant="outline" class="shrink-0 border-violet-300 text-[10px] text-violet-700">{q.targetRole}</Badge>
+								{/if}
+							{:else if respondedByMe(q)}
+								<Badge variant="default" class="shrink-0 gap-1 bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
+									<Check class="size-3" /> answered
+								</Badge>
+							{:else}
+								<Badge variant="outline" class="shrink-0 text-muted-foreground">pending</Badge>
 							{/if}
 							{#if isAdmin}
 								<form

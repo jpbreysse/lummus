@@ -11,7 +11,22 @@ import { getAccessibleWorkshopIds } from '$lib/server/access';
 
 export const load = async ({ locals }) => {
 	const isAdmin = locals.user?.role === 'admin';
+	const userId = locals.user?.id ?? null;
 	const pubFilter = isAdmin ? sql`true` : sql`${question.published} = true`;
+	// "answered" semantics:
+	//   admin → admin-curated question status = 'answered'
+	//   user  → a question the user has personally responded to
+	//           (named response OR own anonymous response)
+	const answeredQuestionExpr =
+		isAdmin || !userId
+			? sql`${question.status} = 'answered'`
+			: sql`exists (
+					select 1 from question_response qr
+					where qr.question_id = ${question.id} and qr.user_id = ${userId}
+				) or exists (
+					select 1 from question_anonymous_response qar
+					where qar.question_id = ${question.id} and qar.user_id = ${userId}
+				)`;
 	const accessible = await getAccessibleWorkshopIds(locals.user);
 	const accessibleIds = accessible ? [...accessible] : null;
 	const wsWhere = accessibleIds ? inArray(workshop.id, accessibleIds) : undefined;
@@ -44,7 +59,7 @@ export const load = async ({ locals }) => {
 	const [{ totalQuestions, answered }] = await db
 		.select({
 			totalQuestions: sql<number>`count(*)::int`,
-			answered: sql<number>`sum(case when ${question.status} = 'answered' then 1 else 0 end)::int`
+			answered: sql<number>`sum(case when (${answeredQuestionExpr}) then 1 else 0 end)::int`
 		})
 		.from(question)
 		.where(
@@ -62,7 +77,7 @@ export const load = async ({ locals }) => {
 			weekNumber: workshop.weekNumber,
 			scheduledAt: workshop.scheduledAt,
 			total: sql<number>`(select count(*)::int from ${question} where ${question.workshopId} = ${workshop.id} and ${pubFilter})`,
-			answered: sql<number>`(select count(*)::int from ${question} where ${question.workshopId} = ${workshop.id} and ${question.status} = 'answered' and ${pubFilter})`,
+			answered: sql<number>`(select count(*)::int from ${question} where ${question.workshopId} = ${workshop.id} and (${answeredQuestionExpr}) and ${pubFilter})`,
 			participants: sql<number>`(select count(*)::int from ${workshopParticipant} where ${workshopParticipant.workshopId} = ${workshop.id})`
 		})
 		.from(workshop)
