@@ -5,6 +5,7 @@ import {
 	question,
 	questionComment,
 	questionResponse,
+	questionAnonymousResponse,
 	workshop,
 	user
 } from '$lib/server/db/schema';
@@ -57,6 +58,22 @@ export const GET: RequestHandler = async ({ locals }) => {
 		.leftJoin(user, eq(user.id, questionResponse.userId))
 		.orderBy(asc(questionResponse.questionId), asc(questionResponse.updatedAt));
 
+	// Anonymous responses — selected WITHOUT user_id so the export
+	// mirrors the admin UI (no attribution, even though the DB now
+	// soft-links the author for the user's own history view).
+	const anonymousResponses = await db
+		.select({
+			id: questionAnonymousResponse.id,
+			questionId: questionAnonymousResponse.questionId,
+			body: questionAnonymousResponse.body,
+			createdAt: questionAnonymousResponse.createdAt
+		})
+		.from(questionAnonymousResponse)
+		.orderBy(
+			asc(questionAnonymousResponse.questionId),
+			asc(questionAnonymousResponse.createdAt)
+		);
+
 	// Index questions by id for cross-sheet lookup
 	const qById = new Map(questions.map((q) => [q.id, q]));
 	// Per-workshop running question number
@@ -85,7 +102,8 @@ export const GET: RequestHandler = async ({ locals }) => {
 		{ header: 'Status', key: 'status', width: 12 },
 		{ header: 'Official answer', key: 'answer', width: 60 },
 		{ header: 'Comments', key: 'nComments', width: 10 },
-		{ header: 'Responses', key: 'nResponses', width: 10 }
+		{ header: 'Responses', key: 'nResponses', width: 10 },
+		{ header: 'Anonymous', key: 'nAnon', width: 10 }
 	];
 	for (const q of questions) {
 		qs.addRow({
@@ -97,7 +115,8 @@ export const GET: RequestHandler = async ({ locals }) => {
 			status: q.status,
 			answer: q.answer ?? '',
 			nComments: comments.filter((c) => c.questionId === q.id).length,
-			nResponses: responses.filter((r) => r.questionId === q.id).length
+			nResponses: responses.filter((r) => r.questionId === q.id).length,
+			nAnon: anonymousResponses.filter((a) => a.questionId === q.id).length
 		});
 	}
 	qs.getRow(1).font = { bold: true };
@@ -164,6 +183,35 @@ export const GET: RequestHandler = async ({ locals }) => {
 	rs.getRow(1).font = { bold: true };
 	rs.getColumn('updated').numFmt = 'yyyy-mm-dd hh:mm';
 	rs.eachRow((row) => {
+		row.alignment = { vertical: 'top', wrapText: true };
+	});
+
+	// ── Sheet 4: Anonymous responses ──────────────────────────────────
+	// No user attribution exposed in the export, even though user_id is
+	// stored in the DB — that matches the admin UI's behaviour.
+	const ars = wb.addWorksheet('Anonymous responses', {
+		views: [{ state: 'frozen', ySplit: 1 }]
+	});
+	ars.columns = [
+		{ header: 'Workshop', key: 'ws', width: 10 },
+		{ header: 'Q#', key: 'qnum', width: 5 },
+		{ header: 'Prompt', key: 'prompt', width: 50 },
+		{ header: 'Submitted', key: 'when', width: 18 },
+		{ header: 'Response', key: 'body', width: 60 }
+	];
+	for (const a of anonymousResponses) {
+		const q = qById.get(a.questionId);
+		ars.addRow({
+			ws: q?.workshopCode ?? '',
+			qnum: qNumberMap.get(a.questionId),
+			prompt: q?.prompt ?? '',
+			when: a.createdAt,
+			body: a.body
+		});
+	}
+	ars.getRow(1).font = { bold: true };
+	ars.getColumn('when').numFmt = 'yyyy-mm-dd hh:mm';
+	ars.eachRow((row) => {
 		row.alignment = { vertical: 'top', wrapText: true };
 	});
 
