@@ -446,9 +446,33 @@
 													Your anonymous answers ({q.myAnonymousResponses.length})
 												</div>
 												{#each q.myAnonymousResponses as a (a.id)}
-													<div class="rounded-md border bg-muted/30 p-3">
-														<div class="text-muted-foreground mb-1 flex items-center gap-1 text-[11px]">
-															<VenetianMask class="size-3" /> {fmtCommentTime(a.createdAt)}
+													<div class="group/anon rounded-md border bg-muted/30 p-3">
+														<div class="mb-1 flex items-center justify-between">
+															<div class="text-muted-foreground flex items-center gap-1 text-[11px]">
+																<VenetianMask class="size-3" /> {fmtCommentTime(a.createdAt)}
+															</div>
+															<form
+																method="POST"
+																action="?/deleteAnonymousResponse"
+																use:enhance={() => {
+																	return async ({ update }) => {
+																		await update();
+																		await invalidateAll();
+																	};
+																}}
+																onsubmit={(e) => {
+																	if (!confirm('Delete this anonymous answer? This cannot be undone.'))
+																		e.preventDefault();
+																}}
+															>
+																<input type="hidden" name="id" value={a.id} />
+																<button
+																	type="submit"
+																	class="text-muted-foreground hover:text-destructive text-[11px] opacity-0 transition-opacity group-hover/anon:opacity-100"
+																>
+																	Delete
+																</button>
+															</form>
 														</div>
 														<p class="text-sm whitespace-pre-wrap">{a.body}</p>
 													</div>
@@ -469,7 +493,7 @@
 										>
 											<input type="hidden" name="questionId" value={q.id} />
 											<p class="text-muted-foreground rounded-md border border-amber-300 bg-amber-50/50 p-2 text-[11px] dark:bg-amber-950/20">
-												⚠️ Anonymous responses cannot be edited or deleted. The admin sees the answer but not your name. You'll be able to review your own anonymous answers here.
+												⚠️ The admin sees your answer but not your name. You can review and delete your own anonymous answers here, but they can't be edited.
 											</p>
 											<Textarea
 												name="body"

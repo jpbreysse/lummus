@@ -482,6 +482,30 @@ export const actions: Actions = {
 		return { ok: true, anonymous: true };
 	},
 
+	deleteAnonymousResponse: async ({ request, locals }) => {
+		// A user may delete only their OWN anonymous response. We compare
+		// the stored user_id (hidden from the admin UI) against the signed-in
+		// user. Rows with a NULL user_id (truly anonymous, created before the
+		// soft-anonymous change) belong to no one and can't be deleted here.
+		if (!locals.user) return fail(401, { error: 'Not signed in' });
+		const form = await request.formData();
+		const id = Number(form.get('id'));
+		if (!id) return fail(400, { error: 'Missing id' });
+
+		const [row] = await db
+			.select({ userId: questionAnonymousResponse.userId })
+			.from(questionAnonymousResponse)
+			.where(eq(questionAnonymousResponse.id, id))
+			.limit(1);
+		if (!row) return fail(404, { error: 'Not found' });
+		if (!row.userId || row.userId !== locals.user.id) {
+			return fail(403, { error: 'Not allowed' });
+		}
+
+		await db.delete(questionAnonymousResponse).where(eq(questionAnonymousResponse.id, id));
+		return { ok: true };
+	},
+
 	saveResponse: async ({ request, locals }) => {
 		if (!locals.user) return fail(401, { error: 'Not signed in' });
 		const form = await request.formData();

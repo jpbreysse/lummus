@@ -45,7 +45,7 @@ Some workshops have role-specific questions (PM vs Engineer). You'll only see th
 3. Pick how you want to answer using the two buttons at the top of the response box:
 
    - **As me** — your name is attached to the answer. The admin sees who wrote what. You can edit or delete it later.
-   - **Anonymous** — the admin sees the answer but **not your name**. You can revisit your own anonymous answers here in the future (they persist across sessions), but you **cannot edit or delete** them once submitted.
+   - **Anonymous** — the admin sees the answer but **not your name**. You can revisit your own anonymous answers here in the future (they persist across sessions), and you can **delete** your own ones if you change your mind. They **cannot be edited** — to reword, delete and submit a new one.
 
 4. Type your answer, then click **Save** (named) or **Submit anonymously**.
 
@@ -58,7 +58,7 @@ You can submit both a named answer AND one or more anonymous answers to the same
 - **Edit** — open the question, switch to **As me**, change the text, click **Update**.
 - **Delete** — open the question, switch to **As me**, click **Delete** in the top-right of the response box.
 
-(Anonymous answers can't be edited or deleted — that's intentional. You can still read your own past anonymous answers on the question, but the admin only sees the text, not your name.)
+(Anonymous answers can't be edited, but you can delete your own. You can read your own past anonymous answers on the question, while the admin only sees the text, not your name.)
 
 ## 4. Commenting on a question
 
@@ -77,7 +77,7 @@ The admin posts announcements (next meeting time, agenda changes, follow-ups). T
 ## 6. Privacy reminders
 
 - Your **named responses** are visible only to admins and yourself.
-- Your **anonymous responses** are visible to admins, but the admin only sees the answer text — not your name. You can review your own anonymous answers on each question.
+- Your **anonymous responses** are visible to admins, but the admin only sees the answer text — not your name. You can review and delete your own anonymous answers on each question.
 - Your **comments** are visible to admins, and to yourself. Other participants do not see them.
 - Your **email** is visible only to admins (on the `/users` page).
 
