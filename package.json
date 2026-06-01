@@ -52,6 +52,7 @@
 	},
 	"dependencies": {
 		"better-auth": "^1.6.5",
-		"exceljs": "^4.4.0"
+		"exceljs": "^4.4.0",
+		"kysely": "0.28.17"
 	}
 }

@@ -2,7 +2,7 @@
 
 This document summarizes the security posture of the Lummus Phase 2 application as deployed at `https://crmenergy.osc-fr1.scalingo.io`. It is intended for security reviewers — both the controls in place and the known gaps are listed explicitly.
 
-*Last reviewed: June 2026.*
+*Last reviewed: 1 June 2026 (dependency audit refresh).*
 
 ## 1. Threat model in scope
 
@@ -194,10 +194,38 @@ Listed explicitly so reviewers don't have to find them.
 | No rate limiting on `/login` or `/api/invites` | Brute-force feasibility | Better Auth's defaults; bearer token has 256 bits of entropy |
 | Anonymous responses are soft-anonymous, not cryptographically anonymous | A DB-level admin (e.g. someone with `pg_dump` access) could correlate | Explicitly documented to users; no product surface exposes the link |
 | No column-level encryption beyond disk | Comparable to industry default for low-sensitivity content | Acceptable given the data inventory in §6 |
-| No formal vulnerability scanning / SBOM | Unknown CVE exposure in dependencies | `npm audit` is run periodically; dependency surface is small (~265 packages, mostly framework) |
+| No formal vulnerability scanning / SBOM | Unknown CVE exposure in dependencies | `npm audit` is run on demand; dependency surface is small (~265 packages, mostly framework). See §12 below for the current audit status. |
 | No CSP / strict HSTS headers defined in app code | XSS hardening relies on Svelte's default escaping | Open to adding; would require a careful audit since the app does not currently use inline scripts |
 
-## 12. Reporting a vulnerability
+## 12. Dependency audit status
+
+Last `npm audit` snapshot: **1 June 2026**. Counts: **0 critical · 0 high · 7 moderate · 6 low**.
+
+### Patched in this audit round
+
+| Package | Advisory | Severity | Action |
+|---|---|---|---|
+| `devalue` | [GHSA-77vg-94rm-hx3p](https://github.com/advisories/GHSA-77vg-94rm-hx3p) — DoS via sparse-array deserialization in form actions | HIGH (CVSS 7.5) | Patched via `npm audit fix` |
+| `kysely` | [GHSA-pv5w-4p9q-p3v2](https://github.com/advisories/GHSA-pv5w-4p9q-p3v2) — JSON-path traversal injection in `JSONPathBuilder` | HIGH (CVSS 7.5) | Pinned to `0.28.17` (newer 0.29.x is API-incompatible with `@better-auth/kysely-adapter@1.6.13`) |
+| `tmp` | [GHSA-ph9p-34f9-6g65](https://github.com/advisories/GHSA-ph9p-34f9-6g65) — Path traversal via prefix/postfix | HIGH | Patched via `npm audit fix` (dev-time tool only) |
+
+### Deferred to a separate upgrade pass
+
+These remain in `npm audit` output but each requires a major-version upgrade and explicit regression testing. None are exploitable in our production code path under current usage:
+
+| Package | Advisory class | Why deferred / mitigation today |
+|---|---|---|
+| `esbuild` (via `drizzle-kit`) | Dev-server can be hit from any website | Dev-time only — never deployed |
+| `uuid` (via `exceljs`) | Buffer bounds in v3/v5/v6 | `exceljs` uses v4 internally; the affected modes aren't invoked. `exceljs` is only used on `/roster` (admin-only) |
+| `@sveltejs/kit` `query.batch` cross-talk | Response confusion between concurrent batched queries | We don't use `query.batch` anywhere |
+| `svelte` SSR XSS via spread attributes | XSS when spreading untrusted data into an element | We never spread user-controlled data into elements |
+| `svelte` ReDoS in `<svelte:element>` | Slow validation on crafted tag name | `<svelte:element>` not used in our codebase |
+| `cookie` OOB characters in name/path/domain | Accepts cookie names with unusual chars | We never set custom cookie names |
+| `better-auth` upgrade (transitive moderates) | Various indirect dep updates | Major upgrade — needs auth-flow regression testing in a dedicated pass |
+
+Re-audit cadence: target every dependency-touching PR, at minimum quarterly.
+
+## 13. Reporting a vulnerability
 
 Email Jean-Philippe Breysse at `jeanphilbreysse@gmail.com` with the subject "Lummus security report". Do not file a public GitHub issue.
 
