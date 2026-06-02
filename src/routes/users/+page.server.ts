@@ -172,5 +172,32 @@ export const actions: Actions = {
 		if (!id) return fail(400, { error: 'Missing id' });
 		await db.delete(invite).where(eq(invite.id, id));
 		return { ok: true };
+	},
+
+	renewInvite: async ({ request, locals }) => {
+		// Bumps an invite's expires_at forward without changing the code,
+		// so any link the admin already shared (e.g. by email) keeps working.
+		// Used invites cannot be renewed — they're single-use by design.
+		if (!requireAdmin(locals)) return fail(403, { error: 'Admin only' });
+		const form = await request.formData();
+		const id = Number(form.get('id'));
+		const ttlDaysRaw = Number(form.get('ttlDays'));
+		const ttlDays =
+			Number.isFinite(ttlDaysRaw) && ttlDaysRaw > 0 && ttlDaysRaw <= 365 ? ttlDaysRaw : 14;
+		if (!id) return fail(400, { error: 'Missing id' });
+
+		const [row] = await db
+			.select({ usedAt: invite.usedAt })
+			.from(invite)
+			.where(eq(invite.id, id))
+			.limit(1);
+		if (!row) return fail(404, { error: 'Not found' });
+		if (row.usedAt) {
+			return fail(400, { error: 'This invite has been used — create a new one instead' });
+		}
+
+		const expiresAt = new Date(Date.now() + ttlDays * 24 * 60 * 60 * 1000);
+		await db.update(invite).set({ expiresAt }).where(eq(invite.id, id));
+		return { ok: true };
 	}
 };

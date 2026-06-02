@@ -11,6 +11,7 @@
 	import { WORKSHOP_ROLES } from '$lib/workshop-roles';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import Copy from '@lucide/svelte/icons/copy';
+	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import Plus from '@lucide/svelte/icons/plus';
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
 	import KeyRound from '@lucide/svelte/icons/key-round';
@@ -292,6 +293,30 @@
 										>
 											<Copy class="size-3.5" />
 										</button>
+										<form
+											method="POST"
+											action="?/renewInvite"
+											use:enhance={() => {
+												return async ({ update }) => {
+													await update();
+													await invalidateAll();
+												};
+											}}
+										>
+											<input type="hidden" name="id" value={inv.id} />
+											<input type="hidden" name="ttlDays" value="14" />
+											<button
+												type="submit"
+												class="{buttonVariants({
+													variant: 'ghost',
+													size: 'sm'
+												})} text-muted-foreground hover:text-foreground"
+												aria-label="Renew (extend expiry by 14 days)"
+												title="Extend expiry by 14 days — same code, same email"
+											>
+												<RefreshCw class="size-3.5" />
+											</button>
+										</form>
 									{/if}
 									<form
 										method="POST"
