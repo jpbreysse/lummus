@@ -15,6 +15,7 @@
 	import Plus from '@lucide/svelte/icons/plus';
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
 	import KeyRound from '@lucide/svelte/icons/key-round';
+	import Search from '@lucide/svelte/icons/search';
 
 	let { data } = $props();
 
@@ -26,6 +27,37 @@
 	let resetPassword = $state('');
 	let resetError = $state<string | null>(null);
 	let resetLoading = $state(false);
+
+	// Free-text search filters. Client-side because both tables are
+	// already in memory — no round-trip needed.
+	let userQuery = $state('');
+	let inviteQuery = $state('');
+
+	const matches = (q: string, ...fields: (string | null | undefined)[]) => {
+		const needle = q.trim().toLowerCase();
+		if (!needle) return true;
+		return fields.some((f) => (f ?? '').toString().toLowerCase().includes(needle));
+	};
+
+	const filteredUsers = $derived(
+		data.users.filter((u) =>
+			matches(userQuery, u.name, u.email, u.role, u.workshopRole, ...u.accessCodes)
+		)
+	);
+
+	const filteredInvites = $derived(
+		data.invites.filter((inv) =>
+			matches(
+				inviteQuery,
+				inv.email,
+				inv.code,
+				inv.workshopRole,
+				inv.usedByName,
+				...(inv.workshopCodes ?? []),
+				inviteStatus(inv).label
+			)
+		)
+	);
 
 	const markSaved = (id: string) => {
 		const stamp = Date.now();
@@ -76,7 +108,19 @@
 
 	<Card.Root class="mb-6">
 		<Card.Header>
-			<Card.Title class="text-base">Users</Card.Title>
+			<div class="flex items-center justify-between gap-3">
+				<Card.Title class="text-base">
+					Users <span class="text-muted-foreground font-normal">({filteredUsers.length}{userQuery ? ` / ${data.users.length}` : ''})</span>
+				</Card.Title>
+				<div class="relative w-72 max-w-full">
+					<Search class="text-muted-foreground pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2" />
+					<Input
+						placeholder="Search by name, email, role…"
+						class="h-8 pl-8 text-sm"
+						bind:value={userQuery}
+					/>
+				</div>
+			</div>
 		</Card.Header>
 		<Card.Content class="px-0">
 			<Table.Root>
@@ -93,7 +137,7 @@
 					</Table.Row>
 				</Table.Header>
 				<Table.Body>
-					{#each data.users as u (u.id)}
+					{#each filteredUsers as u (u.id)}
 						<Table.Row class="group">
 							<Table.Cell class="font-medium">
 								{u.name}
@@ -227,6 +271,12 @@
 								</div>
 							</Table.Cell>
 						</Table.Row>
+					{:else}
+						<Table.Row>
+							<Table.Cell colspan={8} class="text-muted-foreground text-center text-sm py-6">
+								{userQuery ? 'No users match this search.' : 'No users yet.'}
+							</Table.Cell>
+						</Table.Row>
 					{/each}
 				</Table.Body>
 			</Table.Root>
@@ -235,8 +285,22 @@
 
 	<Card.Root>
 		<Card.Header>
-			<Card.Title class="text-base">Invites</Card.Title>
-			<Card.Description>Share these links so others can sign up.</Card.Description>
+			<div class="flex items-center justify-between gap-3">
+				<div>
+					<Card.Title class="text-base">
+						Invites <span class="text-muted-foreground font-normal">({filteredInvites.length}{inviteQuery ? ` / ${data.invites.length}` : ''})</span>
+					</Card.Title>
+					<Card.Description>Share these links so others can sign up.</Card.Description>
+				</div>
+				<div class="relative w-72 max-w-full">
+					<Search class="text-muted-foreground pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2" />
+					<Input
+						placeholder="Search by email, code, status…"
+						class="h-8 pl-8 text-sm"
+						bind:value={inviteQuery}
+					/>
+				</div>
+			</div>
 		</Card.Header>
 		<Card.Content class="px-0">
 			<Table.Root>
@@ -253,7 +317,7 @@
 					</Table.Row>
 				</Table.Header>
 				<Table.Body>
-					{#each data.invites as inv (inv.id)}
+					{#each filteredInvites as inv (inv.id)}
 						{@const s = inviteStatus(inv)}
 						<Table.Row class="group">
 							<Table.Cell><Badge variant={s.variant}>{s.label}</Badge></Table.Cell>
@@ -346,7 +410,7 @@
 					{:else}
 						<Table.Row>
 							<Table.Cell colspan={8} class="text-muted-foreground text-center text-sm py-6">
-								No invites yet.
+								{inviteQuery ? 'No invites match this search.' : 'No invites yet.'}
 							</Table.Cell>
 						</Table.Row>
 					{/each}
