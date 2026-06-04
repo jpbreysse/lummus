@@ -1,6 +1,6 @@
 import { db } from '$lib/server/db';
 import { user, session, invite, account, workshopParticipant, workshop } from '$lib/server/db/schema';
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { error, fail } from '@sveltejs/kit';
 import { randomBytes } from 'node:crypto';
 import { hashPassword } from 'better-auth/crypto';
@@ -122,6 +122,54 @@ export const actions: Actions = {
 			return fail(400, { error: 'Cannot demote yourself' });
 		}
 		await db.update(user).set({ role }).where(eq(user.id, id));
+		return { ok: true };
+	},
+
+	setUserWorkshops: async ({ request, locals }) => {
+		// Replace the set of workshop_participant rows for one user with
+		// the codes the admin ticked. Empty list = no participation rows,
+		// which falls back to "all workshops" per the access.ts default.
+		if (!requireAdmin(locals)) return fail(403, { error: 'Admin only' });
+		const form = await request.formData();
+		const userId = form.get('id')?.toString();
+		if (!userId) return fail(400, { error: 'Missing user id' });
+
+		const codes = form
+			.getAll('codes')
+			.map((c) => c.toString().trim())
+			.filter(Boolean);
+
+		const [u] = await db
+			.select({ id: user.id, role: user.role })
+			.from(user)
+			.where(eq(user.id, userId))
+			.limit(1);
+		if (!u) return fail(404, { error: 'User not found' });
+
+		let workshopIds: number[] = [];
+		if (codes.length) {
+			const existing = await db
+				.select({ id: workshop.id, code: workshop.code })
+				.from(workshop)
+				.where(inArray(workshop.code, codes));
+			const valid = new Set(existing.map((e) => e.code));
+			const unknown = codes.filter((c) => !valid.has(c));
+			if (unknown.length) {
+				return fail(400, { error: `Unknown workshop code(s): ${unknown.join(', ')}` });
+			}
+			workshopIds = existing.map((e) => e.id);
+		}
+
+		// Replace participations atomically so the admin never sees a
+		// partial state mid-update.
+		await db.transaction(async (tx) => {
+			await tx.delete(workshopParticipant).where(eq(workshopParticipant.userId, userId));
+			if (workshopIds.length) {
+				await tx
+					.insert(workshopParticipant)
+					.values(workshopIds.map((wid) => ({ workshopId: wid, userId })));
+			}
+		});
 		return { ok: true };
 	},
 

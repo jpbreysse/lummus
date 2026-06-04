@@ -15,6 +15,7 @@
 	import Plus from '@lucide/svelte/icons/plus';
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
 	import KeyRound from '@lucide/svelte/icons/key-round';
+	import Pencil from '@lucide/svelte/icons/pencil';
 	import Search from '@lucide/svelte/icons/search';
 
 	let { data } = $props();
@@ -27,6 +28,15 @@
 	let resetPassword = $state('');
 	let resetError = $state<string | null>(null);
 	let resetLoading = $state(false);
+
+	// Workshop-access editor state. When set, opens a dialog seeded with
+	// the user's current access codes.
+	let wsEditUser = $state<{
+		id: string;
+		name: string;
+		email: string;
+		codes: string[];
+	} | null>(null);
 
 	// Free-text search filters. Client-side because both tables are
 	// already in memory — no round-trip needed.
@@ -211,13 +221,32 @@
 							<Table.Cell>
 								{#if u.role === 'admin'}
 									<Badge variant="outline" class="text-[10px]">All (admin)</Badge>
-								{:else if u.accessCodes.length === 0}
-									<Badge variant="outline" class="text-[10px]">All workshops</Badge>
 								{:else}
-									<div class="flex flex-wrap gap-1">
-										{#each u.accessCodes as code (code)}
-											<Badge variant="outline" class="font-mono text-[10px]">{code}</Badge>
-										{/each}
+									<div class="flex items-center gap-2">
+										<div class="flex flex-wrap gap-1">
+											{#if u.accessCodes.length === 0}
+												<Badge variant="outline" class="text-[10px]">All workshops</Badge>
+											{:else}
+												{#each u.accessCodes as code (code)}
+													<Badge variant="outline" class="font-mono text-[10px]">{code}</Badge>
+												{/each}
+											{/if}
+										</div>
+										<button
+											type="button"
+											class="text-muted-foreground hover:text-foreground opacity-0 transition-opacity group-hover:opacity-100"
+											onclick={() =>
+												(wsEditUser = {
+													id: u.id,
+													name: u.name,
+													email: u.email,
+													codes: [...u.accessCodes]
+												})}
+											aria-label="Edit workshop access"
+											title="Edit workshop access"
+										>
+											<Pencil class="size-3" />
+										</button>
 									</div>
 								{/if}
 							</Table.Cell>
@@ -425,6 +454,66 @@
 		</div>
 	{/if}
 </div>
+
+<!-- Edit workshop access dialog -->
+<Dialog.Root
+	open={wsEditUser !== null}
+	onOpenChange={(v) => {
+		if (!v) wsEditUser = null;
+	}}
+>
+	<Dialog.Content>
+		<Dialog.Header>
+			<Dialog.Title>Edit workshop access</Dialog.Title>
+			<Dialog.Description>
+				{#if wsEditUser}
+					Choose which workshops <strong>{wsEditUser.name}</strong> ({wsEditUser.email}) can see. With nothing ticked, they'll fall back to seeing all workshops.
+				{/if}
+			</Dialog.Description>
+		</Dialog.Header>
+		<form
+			method="POST"
+			action="?/setUserWorkshops"
+			class="space-y-4"
+			use:enhance={() => {
+				return async ({ result }) => {
+					if (result.type === 'success') {
+						wsEditUser = null;
+						await invalidateAll();
+					}
+				};
+			}}
+		>
+			{#if wsEditUser}
+				<input type="hidden" name="id" value={wsEditUser.id} />
+			{/if}
+			<div class="space-y-2">
+				<Label>Workshops</Label>
+				<div class="flex flex-wrap gap-3 rounded-md border p-3">
+					{#if wsEditUser}
+						{#each data.workshops as w (w.code)}
+							<label class="flex items-center gap-1.5 text-sm">
+								<input
+									type="checkbox"
+									name="codes"
+									value={w.code}
+									checked={wsEditUser.codes.includes(w.code)}
+									class="size-4"
+								/>
+								<span class="font-mono">{w.code}</span>
+								<span class="text-muted-foreground max-w-[12rem] truncate text-xs">{w.title}</span>
+							</label>
+						{/each}
+					{/if}
+				</div>
+			</div>
+			<Dialog.Footer>
+				<Button variant="outline" type="button" onclick={() => (wsEditUser = null)}>Cancel</Button>
+				<Button type="submit">Save</Button>
+			</Dialog.Footer>
+		</form>
+	</Dialog.Content>
+</Dialog.Root>
 
 <!-- Reset password dialog -->
 <Dialog.Root
