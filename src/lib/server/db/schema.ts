@@ -153,6 +153,10 @@ export const question = pgTable(
 		// NULL = shown to all participants.
 		// 'PM' / 'Engineer' = shown only to participants whose workshopRole matches.
 		targetRole: text('target_role'),
+		// Optional grouping label inside a workshop (e.g. "Block 1 — Activity
+		// inventory"). Rendered as a section divider above the first
+		// question carrying it. NULL = no group header.
+		section: text('section'),
 		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
 	},
 	(t) => [index('question_workshop_idx').on(t.workshopId)]

@@ -250,6 +250,12 @@
 					{@const ownResponse = q.responses.find((r) => r.userId === currentUserId)}
 					{@const otherResponses = q.responses.filter((r) => r.userId !== currentUserId)}
 					{@const mode = answerMode[q.id] ?? 'named'}
+					{@const prevSection = i > 0 ? filteredQuestions[i - 1].section : null}
+					{#if q.section && q.section !== prevSection}
+						<div class="text-muted-foreground border-foreground/15 mt-4 border-t pt-3 text-[11px] font-medium uppercase tracking-wide first:mt-0 first:border-t-0 first:pt-0">
+							{q.section}
+						</div>
+					{/if}
 					<div class="hover:bg-accent/30 group rounded-md border p-3 transition-colors">
 						<div class="flex items-start gap-3">
 							<span class="text-muted-foreground w-5 font-mono text-xs">{i + 1}</span>
